@@ -328,6 +328,8 @@ public class ChromaCascadeApp extends Application {
         private int errorFlashFrames = 0;
         private boolean practiceMode = false;
         private int comboCount = 0;
+        private boolean enteringInitials = false;
+        private String playerInitials = "";
 
         private PuzzleRow puzzleRow;
         private int activeSegmentCursor = 0;
@@ -467,6 +469,10 @@ public class ChromaCascadeApp extends Application {
         public void setPracticeMode(boolean practiceMode) { this.practiceMode = practiceMode; }
         public int getComboCount() { return comboCount; }
         public void setComboCount(int comboCount) { this.comboCount = comboCount; }
+        public boolean isEnteringInitials() { return enteringInitials; }
+        public void setEnteringInitials(boolean enteringInitials) { this.enteringInitials = enteringInitials; }
+        public String getPlayerInitials() { return playerInitials; }
+        public void setPlayerInitials(String playerInitials) { this.playerInitials = playerInitials; }
     }
 
     // --- Custom Sorter Engine ---
@@ -1273,26 +1279,120 @@ public class ChromaCascadeApp extends Application {
 
             // Draw Game Over Screen Mask
             if (model.isGameOver()) {
-                gc.setFill(Color.web("#0b0f19", 0.95));
+                gc.setFill(Color.web("#0b0f19", 0.96));
                 gc.fillRect(10, 10, canvas.getWidth() - 20, canvas.getHeight() - 20);
 
-                gc.setStroke(Color.web("#ef4444", 0.7));
-                gc.setLineWidth(1.5);
-                gc.strokeRoundRect(200, 100, 400, 180, 6, 6);
-                gc.setFill(Color.web("#0b0f19", 0.98));
-                gc.fillRoundRect(200, 100, 400, 180, 6, 6);
+                if (model.isEnteringInitials()) {
+                    // Draw Initials Entry Box
+                    gc.setStroke(Color.web("#f59e0b", 0.8));
+                    gc.setLineWidth(2.0);
+                    gc.strokeRoundRect(200, 70, 400, 260, 8, 8);
+                    gc.setFill(Color.web("#0f172a", 0.98));
+                    gc.fillRoundRect(200, 70, 400, 260, 8, 8);
 
-                gc.setFill(Color.web("#ef4444"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
-                gc.fillText("TIME EXPIRED", 325, 145);
+                    // Title
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
+                    String title = "NEW HIGH SCORE!";
+                    gc.fillText(title, 400 - (title.length() * 6.5), 115);
 
-                gc.setFill(Color.WHITE);
-                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
-                gc.fillText("Final Score: " + model.getScore() + " | Completed Waves: " + model.getCompletedWavesCount(), 280, 185);
+                    // Subtitle
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 14));
+                    String sub = "Score: " + model.getScore();
+                    gc.fillText(sub, 400 - (sub.length() * 4.0), 145);
 
-                gc.setFill(Color.web("#94a3b8"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
-                gc.fillText("Press R to Restart | ESC to Main Menu", 300, 230);
+                    gc.setFill(Color.web("#94a3b8"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                    gc.fillText("ENTER YOUR INITIALS", 335, 180);
+
+                    // Draw Initials Input Boxes
+                    String initials = model.getPlayerInitials();
+                    for (int k = 0; k < 3; k++) {
+                        double bx = 330 + k * 55;
+                        double by = 200;
+                        gc.setFill(Color.web("#1e293b"));
+                        gc.fillRoundRect(bx, by, 40, 50, 4, 4);
+                        gc.setStroke(Color.web("#334155"));
+                        gc.strokeRoundRect(bx, by, 40, 50, 4, 4);
+
+                        if (k < initials.length()) {
+                            gc.setFill(Color.WHITE);
+                            gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
+                            gc.fillText(String.valueOf(initials.charAt(k)), bx + 11, by + 36);
+                        } else if (k == initials.length()) {
+                            // Flash cursor
+                            if ((System.currentTimeMillis() / 400) % 2 == 0) {
+                                gc.setFill(Color.web("#f59e0b"));
+                                gc.fillRect(bx + 10, by + 40, 20, 4);
+                            }
+                        }
+                    }
+
+                    gc.setFill(Color.web("#64748b"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10));
+                    gc.fillText("TYPE A-Z AND PRESS ENTER TO REGISTER", 295, 290);
+                } else {
+                    // Draw Leaderboard Table Box
+                    gc.setStroke(Color.web("#ef4444", 0.7));
+                    gc.setLineWidth(2.0);
+                    gc.strokeRoundRect(160, 50, 480, 300, 8, 8);
+                    gc.setFill(Color.web("#0f172a", 0.98));
+                    gc.fillRoundRect(160, 50, 480, 300, 8, 8);
+
+                    // Title
+                    gc.setFill(Color.web("#ef4444"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
+                    String title = "TIME EXPIRED";
+                    gc.fillText(title, 400 - (title.length() * 6.5), 90);
+
+                    // Subtitle
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                    String sub = "Final Score: " + model.getScore() + " | Completed Waves: " + model.getCompletedWavesCount();
+                    gc.fillText(sub, 400 - (sub.length() * 4.0), 115);
+
+                    // Headers
+                    gc.setFill(Color.web("#94a3b8"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+                    gc.fillText("RANK", 190, 145);
+                    gc.fillText("NAME", 260, 145);
+                    gc.fillText("SCORE", 380, 145);
+                    gc.fillText("DATE", 490, 145);
+
+                    gc.setStroke(Color.web("#1e293b"));
+                    gc.setLineWidth(1.0);
+                    gc.strokeLine(180, 153, 620, 153);
+
+                    // Render Top 5 Scores
+                    java.util.List<LeaderboardManager.Entry> top = LeaderboardManager.getTopScores(model.getTargetAlgorithm(), 5);
+                    for (int idx = 0; idx < top.size(); idx++) {
+                        LeaderboardManager.Entry ent = top.get(idx);
+                        double ry = 175 + idx * 26;
+                        
+                        boolean highlight = false;
+                        // Match if the entry is the player's new score
+                        if (ent.score == model.getScore() && (ent.name.equalsIgnoreCase(model.getPlayerInitials()) || ent.name.equalsIgnoreCase("YOU"))) {
+                            highlight = true;
+                        }
+
+                        Color rowColor = highlight ? Color.web("#f59e0b") : Color.web("#cbd5e1");
+                        gc.setFill(rowColor);
+                        gc.setFont(Font.font("Consolas", highlight ? FontWeight.BOLD : FontWeight.NORMAL, 12));
+                        
+                        gc.fillText(String.format("%02d", idx + 1), 195, ry);
+                        gc.fillText(ent.name, 265, ry);
+                        gc.fillText(String.format("%05d", ent.score), 380, ry);
+                        gc.fillText(ent.date, 490, ry);
+                    }
+
+                    gc.setStroke(Color.web("#1e293b"));
+                    gc.strokeLine(180, 305, 620, 305);
+
+                    gc.setFill(Color.web("#94a3b8"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+                    gc.fillText("Press R to Restart | ESC to Main Menu", 295, 328);
+                }
             }
 
             // Visual Effect: Error Red Border Flash
@@ -1345,7 +1445,15 @@ public class ChromaCascadeApp extends Application {
                 if (model.isPracticeMode()) {
                     scoreValLabel.setText("PRACTICE MODE (UNTIMED)");
                 } else {
-                    scoreValLabel.setText(String.format("SCORE: %05d", model.getScore()));
+                    int topScore = 0;
+                    java.util.List<LeaderboardManager.Entry> top = LeaderboardManager.getTopScores(model.getTargetAlgorithm(), 1);
+                    if (!top.isEmpty()) {
+                        topScore = top.get(0).score;
+                    }
+                    if (model.getScore() > topScore) {
+                        topScore = model.getScore();
+                    }
+                    scoreValLabel.setText(String.format("SCORE: %05d    HI-SCORE: %05d", model.getScore(), topScore));
                 }
             }
             if (timerValLabel != null) {
@@ -1457,6 +1565,33 @@ public class ChromaCascadeApp extends Application {
 
         public void handleKeyPress(KeyCode code) {
             if (model.isGameOver()) {
+                if (model.isEnteringInitials()) {
+                    if (code == KeyCode.BACK_SPACE) {
+                        String initials = model.getPlayerInitials();
+                        if (initials.length() > 0) {
+                            model.setPlayerInitials(initials.substring(0, initials.length() - 1));
+                            SoundManager.playClick();
+                        }
+                    } else if (code == KeyCode.ENTER) {
+                        String initials = model.getPlayerInitials().trim();
+                        if (initials.length() > 0) {
+                            LeaderboardManager.addScore(model.getTargetAlgorithm(), model.getScore(), initials);
+                            model.setEnteringInitials(false);
+                            SoundManager.playSuccess();
+                        }
+                    } else {
+                        String s = code.toString();
+                        if (s.length() == 1 && Character.isLetter(s.charAt(0))) {
+                            String initials = model.getPlayerInitials();
+                            if (initials.length() < 3) {
+                                model.setPlayerInitials(initials + s.toUpperCase());
+                                SoundManager.playClick();
+                            }
+                        }
+                    }
+                    return;
+                }
+
                 if (code == KeyCode.R) {
                     initializeGame();
                     if (animationTimer != null) {
@@ -1509,9 +1644,12 @@ public class ChromaCascadeApp extends Application {
 
         public void triggerGameOver() {
             model.setGameOver(true);
-            SoundManager.playGameOver();
-            if (!model.isPracticeMode() && model.getScore() > 0) {
-                LeaderboardManager.addScore(model.getTargetAlgorithm(), model.getScore());
+            SoundManager.stopMusic();
+            if (!model.isPracticeMode() && model.getScore() > 0 && LeaderboardManager.qualifiesForTopFive(model.getTargetAlgorithm(), model.getScore())) {
+                model.setEnteringInitials(true);
+                model.setPlayerInitials("");
+            } else {
+                model.setEnteringInitials(false);
             }
         }
 
@@ -1707,11 +1845,18 @@ public class ChromaCascadeApp extends Application {
             } catch (Exception e) {}
         }
 
-        public static void addScore(String mode, int score) {
+        public static void addScore(String mode, int score, String name) {
             java.util.List<Entry> entries = loadEntries();
             String date = java.time.LocalDate.now().toString();
-            entries.add(new Entry(mode, "YOU", score, date));
+            entries.add(new Entry(mode, name, score, date));
             saveEntries(entries);
+        }
+
+        public static boolean qualifiesForTopFive(String mode, int score) {
+            if (score <= 0) return false;
+            java.util.List<Entry> top = getTopScores(mode, 5);
+            if (top.size() < 5) return true;
+            return score > top.get(top.size() - 1).score;
         }
 
         public static java.util.List<Entry> getTopScores(String mode, int limit) {
