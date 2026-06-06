@@ -134,6 +134,53 @@ public class ChromaCascadeApp extends Application {
         public static void playClick() {
             playTone(1200, 10, 0.15); // Tiny high pitch click
         }
+
+        private static Thread musicThread;
+        private static boolean musicRunning = false;
+
+        public static synchronized void startMusic(ChromaCascadeModel model) {
+            if (musicRunning) return;
+            musicRunning = true;
+            musicThread = new Thread(() -> {
+                int[][] progressions = {
+                    {220, 261, 329, 261}, // Am
+                    {196, 246, 293, 246}, // G
+                    {174, 220, 261, 220}, // F
+                    {164, 207, 246, 207}  // E
+                };
+                int chordIdx = 0;
+                while (musicRunning) {
+                    if (!model.getGameState().equalsIgnoreCase("PLAYING") || model.isGameOver()) {
+                        try { Thread.sleep(200); } catch (InterruptedException e) {}
+                        continue;
+                    }
+                    int[] chord = progressions[chordIdx];
+                    for (int note : chord) {
+                        if (!musicRunning || !model.getGameState().equalsIgnoreCase("PLAYING") || model.isGameOver()) break;
+                        double timeRatio = model.isPracticeMode() ? 1.0 : (double) model.getCountdownTimer() / 20.0;
+                        if (timeRatio > 1.0) timeRatio = 1.0;
+                        double sleepMs = 200.0 + 250.0 * timeRatio; 
+                        playTone(note, 80, 0.03); 
+                        try {
+                            Thread.sleep((long) sleepMs);
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                    }
+                    chordIdx = (chordIdx + 1) % progressions.length;
+                }
+            });
+            musicThread.setDaemon(true);
+            musicThread.start();
+        }
+
+        public static synchronized void stopMusic() {
+            musicRunning = false;
+            if (musicThread != null) {
+                musicThread.interrupt();
+                musicThread = null;
+            }
+        }
     }
 
     public static void logStatus(String message) {
@@ -279,6 +326,8 @@ public class ChromaCascadeApp extends Application {
         private int completedWavesCount = 0;
         private int waveErrors = 0;
         private int errorFlashFrames = 0;
+        private boolean practiceMode = false;
+        private int comboCount = 0;
 
         private PuzzleRow puzzleRow;
         private int activeSegmentCursor = 0;
@@ -414,6 +463,10 @@ public class ChromaCascadeApp extends Application {
         public void setWaveErrors(int waveErrors) { this.waveErrors = waveErrors; }
         public int getErrorFlashFrames() { return errorFlashFrames; }
         public void setErrorFlashFrames(int errorFlashFrames) { this.errorFlashFrames = errorFlashFrames; }
+        public boolean isPracticeMode() { return practiceMode; }
+        public void setPracticeMode(boolean practiceMode) { this.practiceMode = practiceMode; }
+        public int getComboCount() { return comboCount; }
+        public void setComboCount(int comboCount) { this.comboCount = comboCount; }
     }
 
     // --- Custom Sorter Engine ---
@@ -835,11 +888,33 @@ public class ChromaCascadeApp extends Application {
         private Label metricsValLabel;
         private Label targetValLabel;
         private ListView<String> logListView;
+        
+        private java.util.Map<BlockSegment, Double> visualXMap = new java.util.HashMap<>();
+        private java.util.Map<BlockSegment, Double> visualYMap = new java.util.HashMap<>();
+        private java.util.List<Particle> particles = new java.util.ArrayList<>();
 
         public ChromaCascadeView(ChromaCascadeModel model) {
             this.model = model;
             this.canvas = new Canvas(800, 400);
             this.gc = canvas.getGraphicsContext2D();
+        }
+
+        public void clearVisuals() {
+            visualXMap.clear();
+            visualYMap.clear();
+        }
+
+        public void spawnParticles(double x, double y, Color color, int count) {
+            Random r = new Random();
+            for (int i = 0; i < count; i++) {
+                double angle = r.nextDouble() * 2 * Math.PI;
+                double speed = 0.5 + r.nextDouble() * 3.5;
+                double vx = Math.cos(angle) * speed;
+                double vy = Math.sin(angle) * speed - 1.5;
+                double size = 3 + r.nextDouble() * 4;
+                int maxLife = 20 + r.nextInt(25);
+                particles.add(new Particle(x, y, vx, vy, color, size, maxLife));
+            }
         }
 
         public Canvas getCanvas() {
@@ -996,15 +1071,30 @@ public class ChromaCascadeApp extends Application {
                     BlockSegment segment = set[i];
                     if (segment == null) continue;
 
-                    double x = startX + i * boxWidth + 4;
-                    double y = startY;
+                    double targetX = startX + i * boxWidth + 4;
+                    double targetY = startY;
                     if (targetAlgo.equalsIgnoreCase("Merge Sort") && activeLeft != -1 && activeRight != -1 && model.getFreezeFrames() <= 0) {
                         if (i >= activeLeft && i < mergeTarget) {
-                            y = startY + 60;
+                            targetY = startY + 60;
                         } else if (i >= mergeTarget && i <= activeRight) {
-                            y = startY - 60;
+                            targetY = startY - 60;
                         }
                     }
+
+                    final double finalX = targetX;
+                    final double finalY = targetY;
+
+                    double curX = visualXMap.computeIfAbsent(segment, k -> finalX);
+                    double curY = visualYMap.computeIfAbsent(segment, k -> finalY);
+
+                    curX += (targetX - curX) * 0.22;
+                    curY += (targetY - curY) * 0.22;
+
+                    visualXMap.put(segment, curX);
+                    visualYMap.put(segment, curY);
+
+                    double x = curX;
+                    double y = curY;
                     double w = boxWidth - 8;
                     double h = boxHeight;
 
@@ -1214,28 +1304,71 @@ public class ChromaCascadeApp extends Application {
             }
 
             // Visual Effect: Low Time Pulse (Red pulsing overlay when time <= 5s)
-            if (model.getCountdownTimer() <= 5 && !model.isGameOver() && model.getFreezeFrames() <= 0 && model.getCountdownTimer() > 0) {
+            if (model.getCountdownTimer() <= 5 && !model.isGameOver() && model.getFreezeFrames() <= 0 && model.getCountdownTimer() > 0 && !model.isPracticeMode()) {
                 double pulse = 0.12 + 0.12 * Math.sin(System.currentTimeMillis() / 120.0);
                 gc.setFill(Color.web("#ef4444", pulse));
                 gc.fillRect(10, 10, canvas.getWidth() - 20, canvas.getHeight() - 20);
+            }
+
+            // Draw combo count if comboCount >= 2
+            if (model.getComboCount() >= 2) {
+                gc.setFill(Color.web("#f59e0b"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 15));
+                String comboText = "COMBO x" + model.getComboCount() + " (" + model.getComboCount() + "x Multiplier!)";
+                double pulse = 1.0 + 0.04 * Math.sin(System.currentTimeMillis() / 100.0);
+                gc.save();
+                gc.translate(25, 45);
+                gc.scale(pulse, pulse);
+                
+                // Add retro shadow
+                gc.setFill(Color.web("#0b0f19"));
+                gc.fillText(comboText, 1, 1);
+                gc.setFill(Color.web("#f59e0b"));
+                gc.fillText(comboText, 0, 0);
+                gc.restore();
+            }
+
+            // Update and draw particles
+            java.util.Iterator<Particle> it = particles.iterator();
+            while (it.hasNext()) {
+                Particle p = it.next();
+                if (p.update()) {
+                    p.draw(gc);
+                } else {
+                    it.remove();
+                }
             }
         }
 
         public void updateHUD() {
             if (scoreValLabel != null) {
-                scoreValLabel.setText(String.format("SCORE: %05d", model.getScore()));
+                if (model.isPracticeMode()) {
+                    scoreValLabel.setText("PRACTICE MODE (UNTIMED)");
+                } else {
+                    scoreValLabel.setText(String.format("SCORE: %05d", model.getScore()));
+                }
             }
             if (timerValLabel != null) {
-                int rem = model.getCountdownTimer();
-                timerValLabel.setText(rem + "s");
-                if (rem <= 5) {
-                    timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f43f5e; -fx-font-weight: bold; -fx-effect: dropshadow(three-pass-box, rgba(244,63,94,0.6), 10, 0, 0, 0);");
+                if (model.isPracticeMode()) {
+                    timerValLabel.setText("PRACTICE");
+                    timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 32px; -fx-text-fill: #10b981; -fx-font-weight: bold;");
                 } else {
-                    timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f59e0b; -fx-font-weight: bold;");
+                    int rem = model.getCountdownTimer();
+                    timerValLabel.setText(rem + "s");
+                    if (rem <= 5) {
+                        timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f43f5e; -fx-font-weight: bold; -fx-effect: dropshadow(three-pass-box, rgba(244,63,94,0.6), 10, 0, 0, 0);");
+                    } else {
+                        timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f59e0b; -fx-font-weight: bold;");
+                    }
                 }
             }
             if (targetValLabel != null) {
-                targetValLabel.setText("MODE: " + model.getTargetAlgorithm().toUpperCase() + " | WAVE: " + (model.getCompletedWavesCount() + 1));
+                String modeLabelStr = "MODE: " + model.getTargetAlgorithm().toUpperCase();
+                if (model.isPracticeMode()) {
+                    targetValLabel.setText(modeLabelStr + " [PRACTICE]");
+                } else {
+                    targetValLabel.setText(modeLabelStr + " | WAVE: " + (model.getCompletedWavesCount() + 1));
+                }
             }
         }
     }
@@ -1276,6 +1409,7 @@ public class ChromaCascadeApp extends Application {
 
             addLogMessage("PUZZLE ENGINE: System ready. Countdown ticker initialized.");
             addLogMessage("STATUS: Solve waves using " + model.getTargetAlgorithm() + "!");
+            SoundManager.startMusic(model);
         }
 
         public void spawnNewPuzzleSet() {
@@ -1300,6 +1434,7 @@ public class ChromaCascadeApp extends Application {
             model.setPuzzleRow(row);
             model.setSortedCount(0);
             model.getMoveHistory().clear();
+            view.clearVisuals();
 
             java.util.List<SortingStep> stepsList;
             String mode = model.getTargetAlgorithm();
@@ -1372,6 +1507,14 @@ public class ChromaCascadeApp extends Application {
             }
         }
 
+        public void triggerGameOver() {
+            model.setGameOver(true);
+            SoundManager.playGameOver();
+            if (!model.isPracticeMode() && model.getScore() > 0) {
+                LeaderboardManager.addScore(model.getTargetAlgorithm(), model.getScore());
+            }
+        }
+
         private void executeShiftAction() {
             PuzzleRow row = model.getPuzzleRow();
             if (row == null || row.getCurrentSet() == null) return;
@@ -1387,6 +1530,13 @@ public class ChromaCascadeApp extends Application {
             
             SortingStep step = steps.get(currentStepIdx);
             
+            // Calculate coordinates for particle burst
+            double totalWidth = 700.0;
+            double boxWidth = totalWidth / set.length;
+            double startX = (view.getCanvas().getWidth() - totalWidth) / 2.0;
+            double px = startX + cursor * boxWidth + boxWidth / 2.0;
+            double py = view.getCanvas().getHeight() / 2.0;
+            
             if (cursor == step.correctIndex) {
                 int val = set[cursor].getRawValue();
                 GridSorter.shiftElement(set, step.correctIndex, step.targetIndex);
@@ -1394,12 +1544,23 @@ public class ChromaCascadeApp extends Application {
                 SoundManager.playSuccess();
                 
                 model.setCurrentStep(currentStepIdx + 1);
+                model.setComboCount(model.getComboCount() + 1);
+                
+                // Spawn green particles
+                view.spawnParticles(px, py, Color.web("#10b981"), 25);
                 
                 if (currentStepIdx + 1 < steps.size()) {
                     model.setActiveSegmentCursor(steps.get(currentStepIdx + 1).startIndex);
                 }
                 
-                addLogMessage(String.format("CORRECT: Value %d shifted to index %d.", val, step.targetIndex));
+                // Award points for step
+                if (!model.isPracticeMode()) {
+                    int stepPts = 10 * model.getComboCount();
+                    model.setScore(model.getScore() + stepPts);
+                    addLogMessage(String.format("CORRECT: Value %d shifted. (+%d PTS, Combo x%d!)", val, stepPts, model.getComboCount()));
+                } else {
+                    addLogMessage(String.format("CORRECT: Value %d shifted.", val));
+                }
                 
                 if (model.getCurrentStep() >= steps.size()) {
                     checkWinCondition();
@@ -1408,36 +1569,59 @@ public class ChromaCascadeApp extends Application {
                 SoundManager.playFailure();
                 model.setErrorFlashFrames(15);
                 model.setWaveErrors(model.getWaveErrors() + 1);
+                model.setComboCount(0); // Reset combo
                 
-                int currentTimer = model.getCountdownTimer();
-                int newTimer = Math.max(0, currentTimer - 3);
-                model.setCountdownTimer(newTimer);
-                if (newTimer == 0) {
-                    model.setGameOver(true);
-                    SoundManager.playGameOver();
+                // Spawn red particles
+                view.spawnParticles(px, py, Color.web("#f43f5e"), 20);
+                
+                if (!model.isPracticeMode()) {
+                    int currentTimer = model.getCountdownTimer();
+                    int newTimer = Math.max(0, currentTimer - 3);
+                    model.setCountdownTimer(newTimer);
+                    if (newTimer == 0) {
+                        triggerGameOver();
+                    }
+                    model.setScore(Math.max(0, model.getScore() - 25));
+                    addLogMessage(String.format("INCORRECT: Penalty applied. (-25 PTS, Timer -3s)"));
+                } else {
+                    addLogMessage("INCORRECT: Selected block is invalid!");
                 }
                 
-                model.setScore(Math.max(0, model.getScore() - 25));
                 model.setActiveSegmentCursor(step.startIndex);
-                
-                addLogMessage(String.format("INCORRECT: Selected block %d is invalid! Penalty applied.", cursor));
             }
         }
 
         private void checkWinCondition() {
             SoundManager.playWaveClear();
             
+            // Spawn confetti particles from the top of the canvas
+            for (int i = 0; i < 60; i++) {
+                double rx = new Random().nextDouble() * view.getCanvas().getWidth();
+                double ry = 20;
+                view.spawnParticles(rx, ry, Color.color(new Random().nextDouble(), new Random().nextDouble(), new Random().nextDouble()), 1);
+            }
+            
             int base = 100;
             int speedBonus = Math.max(0, model.getCountdownTimer() * 10 - model.getWaveErrors() * 30);
             int waveScore = base + speedBonus;
-            model.setScore(model.getScore() + waveScore);
+            
+            if (!model.isPracticeMode()) {
+                model.setScore(model.getScore() + waveScore);
+            }
             
             int additionalTime = model.getTargetAlgorithm().equalsIgnoreCase("Merge Sort") ? 30 : 10;
-            model.setCountdownTimer(model.getCountdownTimer() + additionalTime);
+            if (!model.isPracticeMode()) {
+                model.setCountdownTimer(model.getCountdownTimer() + additionalTime);
+            }
             model.setCompletedWavesCount(model.getCompletedWavesCount() + 1);
             model.setFreezeFrames(30);
+            model.setComboCount(0); // reset combo for next wave
             
-            addLogMessage(String.format("VERIFIED: Clear via %s (+%d PTS, +%ds)!", model.getTargetAlgorithm(), waveScore, additionalTime));
+            if (!model.isPracticeMode()) {
+                addLogMessage(String.format("VERIFIED: Clear via %s (+%d PTS, +%ds)!", model.getTargetAlgorithm(), waveScore, additionalTime));
+            } else {
+                addLogMessage(String.format("VERIFIED: Clear via %s!", model.getTargetAlgorithm()));
+            }
         }
 
         public void addLogMessage(String msg) {
@@ -1461,6 +1645,126 @@ public class ChromaCascadeApp extends Application {
             // Index L is out of bounds for the current set, triggering exception
             int size = row.getCurrentSet().length;
             row.simulateExternalUpdate(injected, size);
+        }
+    }
+
+    // --- Leaderboard Manager ---
+    public static class LeaderboardManager {
+        private static final String FILE_NAME = "sort_pulse_scores.txt";
+
+        public static class Entry {
+            public String mode;
+            public String name;
+            public int score;
+            public String date;
+
+            public Entry(String mode, String name, int score, String date) {
+                this.mode = mode;
+                this.name = name;
+                this.score = score;
+                this.date = date;
+            }
+        }
+
+        public static java.util.List<Entry> loadEntries() {
+            java.util.List<Entry> entries = new java.util.ArrayList<>();
+            java.io.File file = new java.io.File(FILE_NAME);
+            if (!file.exists()) {
+                entries.add(new Entry("Selection Sort", "ALAN", 500, "2026-06-06"));
+                entries.add(new Entry("Selection Sort", "ADA", 400, "2026-06-06"));
+                entries.add(new Entry("Quick Sort", "GRACE", 800, "2026-06-06"));
+                entries.add(new Entry("Quick Sort", "LINUS", 600, "2026-06-06"));
+                entries.add(new Entry("Merge Sort", "DONALD", 1000, "2026-06-06"));
+                entries.add(new Entry("Merge Sort", "TIM", 700, "2026-06-06"));
+                saveEntries(entries);
+                return entries;
+            }
+            try (java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(file))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (line.trim().isEmpty()) continue;
+                    String[] parts = line.split(":", 4);
+                    if (parts.length >= 3) {
+                        String mode = parts[0].trim();
+                        String name = parts[1].trim();
+                        int score = 0;
+                        try {
+                            score = Integer.parseInt(parts[2].trim());
+                        } catch (NumberFormatException e) {}
+                        String date = parts.length == 4 ? parts[3].trim() : "2026-06-06";
+                        entries.add(new Entry(mode, name, score, date));
+                    }
+                }
+            } catch (Exception e) {}
+            return entries;
+        }
+
+        public static void saveEntries(java.util.List<Entry> entries) {
+            try (java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter(FILE_NAME))) {
+                for (Entry e : entries) {
+                    pw.println(e.mode + ":" + e.name + ":" + e.score + ":" + e.date);
+                }
+            } catch (Exception e) {}
+        }
+
+        public static void addScore(String mode, int score) {
+            java.util.List<Entry> entries = loadEntries();
+            String date = java.time.LocalDate.now().toString();
+            entries.add(new Entry(mode, "YOU", score, date));
+            saveEntries(entries);
+        }
+
+        public static java.util.List<Entry> getTopScores(String mode, int limit) {
+            java.util.List<Entry> entries = loadEntries();
+            java.util.List<Entry> filtered = new java.util.ArrayList<>();
+            for (Entry e : entries) {
+                if (e.mode.equalsIgnoreCase(mode)) {
+                    filtered.add(e);
+                }
+            }
+            filtered.sort((a, b) -> Integer.compare(b.score, a.score));
+            if (filtered.size() > limit) {
+                return filtered.subList(0, limit);
+            }
+            return filtered;
+        }
+    }
+
+    // --- Particle System ---
+    public static class Particle {
+        double x, y;
+        double vx, vy;
+        double alpha;
+        double size;
+        Color color;
+        int maxLife;
+        int life;
+
+        public Particle(double x, double y, double vx, double vy, Color color, double size, int maxLife) {
+            this.x = x;
+            this.y = y;
+            this.vx = vx;
+            this.vy = vy;
+            this.color = color;
+            this.size = size;
+            this.maxLife = maxLife;
+            this.life = maxLife;
+            this.alpha = 1.0;
+        }
+
+        public boolean update() {
+            x += vx;
+            y += vy;
+            vy += 0.08; 
+            vx *= 0.98;
+            life--;
+            alpha = (double) life / maxLife;
+            return life > 0;
+        }
+
+        public void draw(GraphicsContext gc) {
+            gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(), alpha));
+            gc.fillOval(x - size / 2.0, y - size / 2.0, size, size);
         }
     }
 
@@ -1504,10 +1808,77 @@ public class ChromaCascadeApp extends Application {
         mergeBtn.setOnMouseEntered(e -> mergeBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #3b82f6; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(59,130,246,0.3), 8, 0, 0, 0);"));
         mergeBtn.setOnMouseExited(e -> mergeBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
 
+        CheckBox practiceModeCb = new CheckBox("PRACTICE MODE (NO TIMER)");
+        practiceModeCb.setStyle("-fx-text-fill: #94a3b8; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-cursor: hand;");
+        practiceModeCb.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            model.setPracticeMode(newVal);
+        });
+
+        Button leaderboardBtn = new Button("HIGH SCORES");
+        leaderboardBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
+        leaderboardBtn.setOnMouseEntered(e -> leaderboardBtn.setStyle("-fx-background-color: #a855f7; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #a855f7; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(168,85,247,0.3), 8, 0, 0, 0);"));
+        leaderboardBtn.setOnMouseExited(e -> leaderboardBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
+
         Label menuGuide = new Label("Press ESC to Quit Game");
         menuGuide.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-text-fill: #475569; -fx-padding: 20px 0 0 0;");
 
-        menuLayout.getChildren().addAll(menuTitle, menuSubtitle, selectionBtn, quickBtn, mergeBtn, menuGuide);
+        menuLayout.getChildren().addAll(menuTitle, menuSubtitle, selectionBtn, quickBtn, mergeBtn, practiceModeCb, leaderboardBtn, menuGuide);
+
+        // Leaderboards Layout
+        VBox leaderboardLayout = new VBox(20);
+        leaderboardLayout.setAlignment(Pos.CENTER);
+        leaderboardLayout.setPadding(new Insets(40));
+        leaderboardLayout.setStyle("-fx-background-color: #0b0f19;");
+
+        Label lbTitle = new Label("HIGH SCORES");
+        lbTitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: #a855f7;");
+
+        HBox columns = new HBox(40);
+        columns.setAlignment(Pos.CENTER);
+
+        Runnable refreshLeaderboard = () -> {
+            columns.getChildren().clear();
+            String[] modes = {"Selection Sort", "Quick Sort", "Merge Sort"};
+            for (String modeName : modes) {
+                VBox col = new VBox(10);
+                col.setAlignment(Pos.TOP_CENTER);
+                col.setStyle("-fx-background-color: #0f172a; -fx-padding: 15px; -fx-background-radius: 6px; -fx-border-color: #1e293b; -fx-border-width: 1px; -fx-min-width: 200;");
+
+                Label modeHeader = new Label(modeName.toUpperCase());
+                modeHeader.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 12px; -fx-text-fill: #cbd5e1;");
+                col.getChildren().add(modeHeader);
+
+                java.util.List<LeaderboardManager.Entry> top = LeaderboardManager.getTopScores(modeName, 5);
+                if (top.isEmpty()) {
+                    Label noScores = new Label("NO SCORES YET");
+                    noScores.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 11px; -fx-text-fill: #475569;");
+                    col.getChildren().add(noScores);
+                } else {
+                    for (int i = 0; i < top.size(); i++) {
+                        LeaderboardManager.Entry ent = top.get(i);
+                        Label entryLbl = new Label((i + 1) + ". " + ent.name + " - " + ent.score);
+                        entryLbl.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 12px; -fx-text-fill: #cbd5e1;");
+                        col.getChildren().add(entryLbl);
+                    }
+                }
+                columns.getChildren().add(col);
+            }
+        };
+
+        Button backBtn = new Button("BACK TO MENU");
+        backBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-cursor: hand;");
+        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: #10b981; -fx-border-width: 1px; -fx-cursor: hand;"));
+        backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-cursor: hand;"));
+        backBtn.setOnAction(e -> {
+            rootContainer.getChildren().setAll(menuLayout);
+        });
+
+        leaderboardLayout.getChildren().addAll(lbTitle, columns, backBtn);
+
+        leaderboardBtn.setOnAction(e -> {
+            refreshLeaderboard.run();
+            rootContainer.getChildren().setAll(leaderboardLayout);
+        });
 
         // 2. Build SLEEK MINIMAL GAME LAYOUT
         VBox gameLayout = new VBox(0);
@@ -1614,6 +1985,7 @@ public class ChromaCascadeApp extends Application {
             if (code == KeyCode.ESCAPE) {
                 if (model.getGameState().equalsIgnoreCase("PLAYING") || model.getGameState().equalsIgnoreCase("GAME_OVER")) {
                     model.setGameState("MENU");
+                    SoundManager.stopMusic();
                     rootContainer.getChildren().setAll(menuLayout);
                 } else {
                     Platform.exit();
@@ -1649,12 +2021,11 @@ public class ChromaCascadeApp extends Application {
                 long elapsed = now - lastTimerTickTime;
                 if (elapsed >= 1_000_000_000L) {
                     lastTimerTickTime = now;
-                    if (model.getFreezeFrames() <= 0) {
+                    if (model.getFreezeFrames() <= 0 && !model.isPracticeMode()) {
                         model.setCountdownTimer(model.getCountdownTimer() - 1);
                         if (model.getCountdownTimer() <= 0) {
                             model.setCountdownTimer(0);
-                            model.setGameOver(true);
-                            SoundManager.playGameOver();
+                            controller.triggerGameOver();
                         }
                     }
                 }
