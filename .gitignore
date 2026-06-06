@@ -1,0 +1,16 @@
+# Compiled class files
+app/*.class
+
+# macOS metadata
+.DS_Store
+
+# Windows thumbnail cache
+Thumbs.db
+
+# IntelliJ / VS Code / Eclipse project files
+.idea/
+.vscode/
+*.iml
+*.classpath
+*.project
+.settings/

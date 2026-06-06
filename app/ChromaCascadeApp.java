@@ -1,0 +1,2564 @@
+package app;
+
+import javafx.animation.AnimationTimer;
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.LinearGradient;
+import javafx.scene.paint.Stop;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+
+import java.util.Random;
+import java.util.ArrayList;
+import java.util.List;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.SourceDataLine;
+
+/**
+ * Sort Pulse: Timed Puzzle Blitz Engine
+ * A frantic time-attack 2D arcade puzzle engine written from scratch.
+ * Dekeying falling matrix grids in favor of a variable-length horizontal block sorting loop
+ * evaluated against a continuous countdown clock.
+ */
+public class ChromaCascadeApp extends Application {
+
+    private static ChromaCascadeController controllerInstance;
+
+    // --- Step Domain Class ---
+    public static class SortingStep {
+        public int correctIndex;
+        public int targetIndex;
+        public int nextCursor;
+        public int startIndex;
+        public int wrapIndex;
+        public boolean[] greenBlocks;
+        public String description;
+
+        // Tracking fields for partition and active pointers
+        public int activeLeft = -1;
+        public int activeRight = -1;
+        public int pivotIndex = -1;
+        public int headA = -1;
+        public int headB = -1;
+        public int mergeTarget = -1;
+        public int mid = -1;
+    }
+
+    // --- Retro Sound Synthesizer Engine ---
+    public static class SoundManager {
+        private static void playTone(int hz, int msecs, double volume) {
+            new Thread(() -> {
+                try {
+                    float sampleRate = 8000f;
+                    AudioFormat af = new AudioFormat(sampleRate, 8, 1, true, false);
+                    SourceDataLine sdl = AudioSystem.getSourceDataLine(af);
+                    sdl.open(af);
+                    sdl.start();
+                    int numSamples = (int) (sampleRate * (msecs / 1000.0));
+                    byte[] buf = new byte[numSamples];
+                    for (int i = 0; i < numSamples; i++) {
+                        double angle = i / (sampleRate / hz) * 2.0 * Math.PI;
+                        buf[i] = (byte) (Math.sin(angle) * 127.0 * volume);
+                    }
+                    sdl.write(buf, 0, buf.length);
+                    sdl.drain();
+                    sdl.close();
+                } catch (Exception e) {
+                    // Fail silently
+                }
+            }).start();
+        }
+
+        public static void playSuccess() {
+            new Thread(() -> {
+                try {
+                    playTone(523, 70, 0.4); // C5
+                    Thread.sleep(70);
+                    playTone(659, 70, 0.4); // E5
+                    Thread.sleep(70);
+                    playTone(784, 100, 0.4); // G5
+                } catch (InterruptedException e) {}
+            }).start();
+        }
+
+        public static void playFailure() {
+            new Thread(() -> {
+                playTone(150, 250, 0.6); // Low buzz tone
+            }).start();
+        }
+
+        public static void playWaveClear() {
+            new Thread(() -> {
+                try {
+                    playTone(523, 100, 0.4); // C5
+                    Thread.sleep(100);
+                    playTone(659, 100, 0.4); // E5
+                    Thread.sleep(100);
+                    playTone(784, 100, 0.4); // G5
+                    Thread.sleep(100);
+                    playTone(1046, 200, 0.5); // C6
+                } catch (InterruptedException e) {}
+            }).start();
+        }
+
+        public static void playGameOver() {
+            new Thread(() -> {
+                try {
+                    playTone(392, 150, 0.5); // G4
+                    Thread.sleep(150);
+                    playTone(349, 150, 0.5); // F4
+                    Thread.sleep(150);
+                    playTone(311, 150, 0.5); // Eb4
+                    Thread.sleep(150);
+                    playTone(261, 300, 0.6); // C4
+                } catch (InterruptedException e) {}
+            }).start();
+        }
+
+        public static void playClick() {
+            playTone(1200, 10, 0.15); // Tiny high pitch click
+        }
+    }
+
+    public static void logStatus(String message) {
+        if (controllerInstance != null) {
+            Platform.runLater(() -> controllerInstance.addLogMessage(message));
+        } else {
+            System.out.println(message);
+        }
+    }
+
+    // --- Domain Hierarchy ---
+
+    public static abstract class BlockSegment {
+        private int rawValue;
+        private int positionIndex;
+
+        public BlockSegment(int rawValue, int positionIndex) {
+            this.rawValue = rawValue;
+            this.positionIndex = positionIndex;
+        }
+
+        public int getRawValue() {
+            return rawValue;
+        }
+
+        public void setRawValue(int rawValue) {
+            this.rawValue = rawValue;
+        }
+
+        public int getPositionIndex() {
+            return positionIndex;
+        }
+
+        public void setPositionIndex(int positionIndex) {
+            this.positionIndex = positionIndex;
+        }
+
+        public abstract double calculateSortWeight();
+    }
+
+    public static class OddSegment extends BlockSegment {
+        public OddSegment(int rawValue, int positionIndex) {
+            super(rawValue, positionIndex);
+        }
+
+        @Override
+        public double calculateSortWeight() {
+            return getRawValue() * 1.25;
+        }
+    }
+
+    public static class EvenSegment extends BlockSegment {
+        public EvenSegment(int rawValue, int positionIndex) {
+            super(rawValue, positionIndex);
+        }
+
+        @Override
+        public double calculateSortWeight() {
+            return getRawValue() + 5.5;
+        }
+    }
+
+    // Rigid primitive container class locked to active random length
+    public static class PuzzleRow {
+        private BlockSegment[] currentSet;
+        private BlockSegment[] overflowStack = new BlockSegment[5];
+        private int overflowCount = 0;
+
+        public PuzzleRow(int size) {
+            this.currentSet = new BlockSegment[size];
+        }
+
+        public BlockSegment[] getCurrentSet() {
+            return currentSet;
+        }
+
+        public void setCurrentSet(BlockSegment[] currentSet) {
+            this.currentSet = currentSet;
+        }
+
+        public BlockSegment[] getOverflowStack() {
+            return overflowStack;
+        }
+
+        public int getOverflowCount() {
+            return overflowCount;
+        }
+
+        public void setSegment(int index, BlockSegment segment) {
+            try {
+                if (index < 0 || index >= currentSet.length) {
+                    throw new ArrayIndexOutOfBoundsException("Index " + index + " out of bounds for PuzzleRow segments array of size " + currentSet.length);
+                }
+                currentSet[index] = segment;
+                if (segment != null) {
+                    segment.setPositionIndex(index);
+                }
+            } catch (ArrayIndexOutOfBoundsException e) {
+                handleOverflowGracefully(segment, e.getMessage());
+            }
+        }
+
+        // Method simulating external injection / updates when row is active
+        public void simulateExternalUpdate(BlockSegment segment, int index) {
+            try {
+                if (index < 0 || index >= currentSet.length) {
+                    throw new ArrayIndexOutOfBoundsException("Simulation update index " + index + " exceeds capacity " + currentSet.length);
+                }
+                currentSet[index] = segment;
+                if (segment != null) {
+                    segment.setPositionIndex(index);
+                }
+            } catch (Exception e) {
+                handleOverflowGracefully(segment, e.getMessage());
+            }
+        }
+
+        private void handleOverflowGracefully(BlockSegment segment, String errorDetail) {
+            if (overflowCount < 5) {
+                overflowStack[overflowCount] = segment;
+                overflowCount++;
+                ChromaCascadeApp.logStatus("OVERFLOW WARNING: Catch-safe stack captured segment (Val: " 
+                        + (segment != null ? segment.getRawValue() : "null") + ") due to exception: [" + errorDetail + "]. Slot: " + overflowCount + "/5");
+            } else {
+                ChromaCascadeApp.logStatus("OVERFLOW CRITICAL: Safety Stack maximum limit (5) reached! Injected block dropped.");
+            }
+        }
+
+        public void clearOverflow() {
+            for (int i = 0; i < overflowStack.length; i++) {
+                overflowStack[i] = null;
+            }
+            overflowCount = 0;
+        }
+    }
+
+    // --- Model ---
+
+    public static class ChromaCascadeModel {
+        private String gameState = "MENU"; // "MENU", "PLAYING", "GAME_OVER"
+        private java.util.List<SortingStep> steps = new java.util.ArrayList<>();
+        private int currentStep = 0;
+        private int completedWavesCount = 0;
+        private int waveErrors = 0;
+        private int errorFlashFrames = 0;
+
+        private PuzzleRow puzzleRow;
+        private int activeSegmentCursor = 0;
+        private int score = 0;
+        private int countdownTimer = 60; // 60 seconds starting clock
+        private long lastSortDurationNs = 0;
+        private String lastSortAlgorithm = "Selection Sort";
+        private String lastCompletionMethod = "Selection Sort";
+        private String targetAlgorithm = "Selection Sort";
+        private int sortedCount = 0;
+        private java.util.List<String> moveHistory = new java.util.ArrayList<>();
+        private boolean gameOver = false;
+
+        // Visual freeze indicator forCompleted banner pop-up
+        private int freezeFrames = 0;
+
+        private ObservableList<String> memoryRegisters = FXCollections.observableArrayList();
+        private ObservableList<String> systemStatusLog = FXCollections.observableArrayList();
+
+        public PuzzleRow getPuzzleRow() {
+            return puzzleRow;
+        }
+
+        public void setPuzzleRow(PuzzleRow puzzleRow) {
+            this.puzzleRow = puzzleRow;
+        }
+
+        public int getActiveSegmentCursor() {
+            return activeSegmentCursor;
+        }
+
+        public void setActiveSegmentCursor(int activeSegmentCursor) {
+            this.activeSegmentCursor = activeSegmentCursor;
+        }
+
+        public int getScore() {
+            return score;
+        }
+
+        public void setScore(int score) {
+            this.score = score;
+        }
+
+        public int getCountdownTimer() {
+            return countdownTimer;
+        }
+
+        public void setCountdownTimer(int countdownTimer) {
+            this.countdownTimer = countdownTimer;
+        }
+
+        public long getLastSortDurationNs() {
+            return lastSortDurationNs;
+        }
+
+        public void setLastSortDurationNs(long lastSortDurationNs) {
+            this.lastSortDurationNs = lastSortDurationNs;
+        }
+
+        public String getLastSortAlgorithm() {
+            return lastSortAlgorithm;
+        }
+
+        public void setLastSortAlgorithm(String lastSortAlgorithm) {
+            this.lastSortAlgorithm = lastSortAlgorithm;
+        }
+
+        public String getLastCompletionMethod() {
+            return lastCompletionMethod;
+        }
+
+        public void setLastCompletionMethod(String lastCompletionMethod) {
+            this.lastCompletionMethod = lastCompletionMethod;
+        }
+
+        public String getTargetAlgorithm() {
+            return targetAlgorithm;
+        }
+
+        public void setTargetAlgorithm(String targetAlgorithm) {
+            this.targetAlgorithm = targetAlgorithm;
+        }
+
+        public int getSortedCount() {
+            return sortedCount;
+        }
+
+        public void setSortedCount(int sortedCount) {
+            this.sortedCount = sortedCount;
+        }
+
+        public java.util.List<String> getMoveHistory() {
+            return moveHistory;
+        }
+
+        public void setMoveHistory(java.util.List<String> moveHistory) {
+            this.moveHistory = moveHistory;
+        }
+
+        public boolean isGameOver() {
+            return gameOver;
+        }
+
+        public void setGameOver(boolean gameOver) {
+            this.gameOver = gameOver;
+        }
+
+        public int getFreezeFrames() {
+            return freezeFrames;
+        }
+
+        public void setFreezeFrames(int freezeFrames) {
+            this.freezeFrames = freezeFrames;
+        }
+
+        public ObservableList<String> getMemoryRegisters() {
+            return memoryRegisters;
+        }
+
+        public ObservableList<String> getSystemStatusLog() {
+            return systemStatusLog;
+        }
+
+        public String getGameState() { return gameState; }
+        public void setGameState(String gameState) { this.gameState = gameState; }
+        public java.util.List<SortingStep> getSteps() { return steps; }
+        public void setSteps(java.util.List<SortingStep> steps) { this.steps = steps; }
+        public int getCurrentStep() { return currentStep; }
+        public void setCurrentStep(int currentStep) { this.currentStep = currentStep; }
+        public int getCompletedWavesCount() { return completedWavesCount; }
+        public void setCompletedWavesCount(int completedWavesCount) { this.completedWavesCount = completedWavesCount; }
+        public int getWaveErrors() { return waveErrors; }
+        public void setWaveErrors(int waveErrors) { this.waveErrors = waveErrors; }
+        public int getErrorFlashFrames() { return errorFlashFrames; }
+        public void setErrorFlashFrames(int errorFlashFrames) { this.errorFlashFrames = errorFlashFrames; }
+    }
+
+    // --- Custom Sorter Engine ---
+
+    public static class GridSorter {
+
+        public static void sortRow(BlockSegment[] array, String algorithmName) {
+            if (algorithmName.equalsIgnoreCase("Quick Sort")) {
+                quickSort(array, 0, array.length - 1);
+            } else if (algorithmName.equalsIgnoreCase("Merge Sort")) {
+                mergeSort(array, 0, array.length - 1);
+            } else {
+                selectionSort(array);
+            }
+        }
+
+        // Selection Sort (Ascending)
+        public static void selectionSort(BlockSegment[] array) {
+            int n = array.length;
+            for (int i = 0; i < n - 1; i++) {
+                int minIdx = i;
+                for (int j = i + 1; j < n; j++) {
+                    if (compare(array[j], array[minIdx]) < 0) {
+                        minIdx = j;
+                    }
+                }
+                BlockSegment temp = array[i];
+                array[i] = array[minIdx];
+                array[minIdx] = temp;
+                if (array[i] != null) array[i].setPositionIndex(i);
+                if (array[minIdx] != null) array[minIdx].setPositionIndex(minIdx);
+            }
+        }
+
+        // Quick Sort (Ascending)
+        public static void quickSort(BlockSegment[] array, int low, int high) {
+            if (low < high) {
+                int pi = partition(array, low, high);
+                quickSort(array, low, pi - 1);
+                quickSort(array, pi + 1, high);
+            }
+        }
+
+        private static int partition(BlockSegment[] array, int low, int high) {
+            BlockSegment pivot = array[high];
+            int i = low - 1;
+            for (int j = low; j < high; j++) {
+                if (compare(array[j], pivot) <= 0) {
+                    i++;
+                    BlockSegment temp = array[i];
+                    array[i] = array[j];
+                    array[j] = temp;
+                    if (array[i] != null) array[i].setPositionIndex(i);
+                    if (array[j] != null) array[j].setPositionIndex(j);
+                }
+            }
+            BlockSegment temp = array[i + 1];
+            array[i + 1] = array[high];
+            array[high] = temp;
+            if (array[i + 1] != null) array[i + 1].setPositionIndex(i + 1);
+            if (array[high] != null) array[high].setPositionIndex(high);
+            return i + 1;
+        }
+
+        // Merge Sort (Ascending)
+        public static void mergeSort(BlockSegment[] array, int l, int r) {
+            if (l < r) {
+                int m = l + (r - l) / 2;
+                mergeSort(array, l, m);
+                mergeSort(array, m + 1, r);
+                merge(array, l, m, r);
+            }
+        }
+
+        private static void merge(BlockSegment[] array, int l, int m, int r) {
+            int n1 = m - l + 1;
+            int n2 = r - m;
+
+            BlockSegment[] L = new BlockSegment[n1];
+            BlockSegment[] R = new BlockSegment[n2];
+
+            for (int i = 0; i < n1; ++i)
+                L[i] = array[l + i];
+            for (int j = 0; j < n2; ++j)
+                R[j] = array[m + 1 + j];
+
+            int i = 0, j = 0;
+            int k = l;
+            while (i < n1 && j < n2) {
+                if (compare(L[i], R[j]) <= 0) {
+                    array[k] = L[i];
+                    i++;
+                } else {
+                    array[k] = R[j];
+                    j++;
+                }
+                if (array[k] != null) array[k].setPositionIndex(k);
+                k++;
+            }
+
+            while (i < n1) {
+                array[k] = L[i];
+                if (array[k] != null) array[k].setPositionIndex(k);
+                i++;
+                k++;
+            }
+
+            while (j < n2) {
+                array[k] = R[j];
+                if (array[k] != null) array[k].setPositionIndex(k);
+                j++;
+                k++;
+            }
+        }
+
+        private static int compare(BlockSegment a, BlockSegment b) {
+            if (a == null && b == null) return 0;
+            if (a == null) return 1;  // null goes to the end
+            if (b == null) return -1;
+            return Integer.compare(a.getRawValue(), b.getRawValue());
+        }
+
+        public static int countInversions(BlockSegment[] row) {
+            int inversions = 0;
+            for (int i = 0; i < row.length; i++) {
+                if (row[i] == null) continue;
+                int valI = row[i].getRawValue();
+                for (int j = i + 1; j < row.length; j++) {
+                    if (row[j] == null) continue;
+                    int valJ = row[j].getRawValue();
+                    if (valI > valJ) {
+                        inversions++;
+                    }
+                }
+            }
+            return inversions;
+        }
+
+        public static boolean isSegmentSorted(BlockSegment[] row, int index) {
+            if (row[index] == null) return true;
+            int val = row[index].getRawValue();
+
+            // Compare to left neighbor
+            if (index > 0 && row[index - 1] != null) {
+                if (row[index - 1].getRawValue() > val) {
+                    return false;
+                }
+            }
+
+            // Compare to right neighbor
+            if (index < row.length - 1 && row[index + 1] != null) {
+                if (val > row[index + 1].getRawValue()) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public static void shiftElement(BlockSegment[] array, int from, int to) {
+            if (from == to) return;
+            BlockSegment target = array[from];
+            if (from > to) {
+                for (int i = from; i > to; i--) {
+                    array[i] = array[i - 1];
+                }
+                array[to] = target;
+            } else {
+                for (int i = from; i < to; i++) {
+                    array[i] = array[i + 1];
+                }
+                array[to] = target;
+            }
+            for (int i = 0; i < array.length; i++) {
+                if (array[i] != null) {
+                    array[i].setPositionIndex(i);
+                }
+            }
+        }
+
+        // --- Step Generators for User Gameplay ---
+
+        private static int[] getSortedValues(BlockSegment[] array) {
+            BlockSegment[] sorted = array.clone();
+            selectionSort(sorted);
+            int[] vals = new int[sorted.length];
+            for (int i = 0; i < sorted.length; i++) {
+                vals[i] = sorted[i].getRawValue();
+            }
+            return vals;
+        }
+
+        public static void shiftBooleanElement(boolean[] array, int from, int to) {
+            if (from == to) return;
+            boolean target = array[from];
+            if (from > to) {
+                for (int i = from; i > to; i--) {
+                    array[i] = array[i - 1];
+                }
+                array[to] = target;
+            } else {
+                for (int i = from; i < to; i++) {
+                    array[i] = array[i + 1];
+                }
+                array[to] = target;
+            }
+        }
+
+        public static java.util.List<SortingStep> generateSelectionSortSteps(BlockSegment[] initial) {
+            BlockSegment[] array = initial.clone();
+            int[] sortedVals = getSortedValues(initial);
+            java.util.List<SortingStep> steps = new java.util.ArrayList<>();
+            int n = array.length;
+            for (int i = 0; i < n - 1; i++) {
+                int minIdx = i;
+                for (int j = i + 1; j < n; j++) {
+                    if (compare(array[j], array[minIdx]) < 0) {
+                        minIdx = j;
+                    }
+                }
+                SortingStep step = new SortingStep();
+                step.correctIndex = minIdx;
+                step.targetIndex = i;
+                step.nextCursor = (i + 1 < n) ? i + 1 : i;
+                step.startIndex = i;
+                step.wrapIndex = i;
+                step.description = String.format("Select minimum element (value %d) at index %d and shift to %d.", array[minIdx].getRawValue(), minIdx, i);
+                step.activeLeft = i;
+                step.activeRight = n - 1;
+                step.mergeTarget = i;
+                
+                shiftElement(array, minIdx, i);
+                
+                step.greenBlocks = new boolean[n];
+                for (int k = 0; k < n; k++) {
+                    step.greenBlocks[k] = (k <= i && array[k].getRawValue() == sortedVals[k]);
+                }
+                steps.add(step);
+            }
+            return steps;
+        }
+
+        public static java.util.List<SortingStep> generateQuickSortSteps(BlockSegment[] initial) {
+            BlockSegment[] array = initial.clone();
+            int[] sortedVals = getSortedValues(initial);
+            java.util.List<SortingStep> steps = new java.util.ArrayList<>();
+            boolean[] finalized = new boolean[array.length];
+            quickSortTraceSteps(array, 0, array.length - 1, steps, finalized, sortedVals);
+            return steps;
+        }
+
+        private static void quickSortTraceSteps(BlockSegment[] array, int low, int high, java.util.List<SortingStep> steps, boolean[] finalized, int[] sortedVals) {
+            if (low >= high) {
+                if (low >= 0 && low < array.length) {
+                    finalized[low] = true;
+                }
+                return;
+            }
+            int pivotIdx = high;
+            BlockSegment pivot = array[pivotIdx];
+            int i = low - 1;
+            for (int j = low; j < high; j++) {
+                if (compare(array[j], pivot) <= 0) {
+                    i++;
+                    if (j != i) {
+                        SortingStep step = new SortingStep();
+                        step.correctIndex = j;
+                        step.targetIndex = i;
+                        step.nextCursor = (j + 1 < high) ? j + 1 : high;
+                        step.startIndex = low;
+                        step.wrapIndex = low;
+                        step.description = String.format("Select element %d at index %d and shift to index %d.", array[j].getRawValue(), j, i);
+                        step.activeLeft = low;
+                        step.activeRight = high;
+                        step.pivotIndex = pivotIdx;
+                        step.mergeTarget = i;
+                        
+                        shiftElement(array, j, i);
+                        shiftBooleanElement(finalized, j, i);
+                        if (pivotIdx >= i && pivotIdx < j) {
+                            pivotIdx++;
+                        }
+                        
+                        step.greenBlocks = new boolean[array.length];
+                        for (int k = 0; k < array.length; k++) {
+                            step.greenBlocks[k] = finalized[k] && (array[k].getRawValue() == sortedVals[k]);
+                        }
+                        steps.add(step);
+                    }
+                }
+            }
+            int targetPivotIdx = i + 1;
+            SortingStep step = new SortingStep();
+            step.correctIndex = pivotIdx;
+            step.targetIndex = targetPivotIdx;
+            step.nextCursor = targetPivotIdx;
+            step.startIndex = low;
+            step.wrapIndex = low;
+            step.description = String.format("Select pivot %d at index %d and shift to final index %d.", array[pivotIdx].getRawValue(), pivotIdx, targetPivotIdx);
+            step.activeLeft = low;
+            step.activeRight = high;
+            step.pivotIndex = pivotIdx;
+            step.mergeTarget = targetPivotIdx;
+            
+            shiftElement(array, pivotIdx, targetPivotIdx);
+            shiftBooleanElement(finalized, pivotIdx, targetPivotIdx);
+            finalized[targetPivotIdx] = true;
+            
+            step.greenBlocks = new boolean[array.length];
+            for (int k = 0; k < array.length; k++) {
+                step.greenBlocks[k] = finalized[k] && (array[k].getRawValue() == sortedVals[k]);
+            }
+            steps.add(step);
+
+            quickSortTraceSteps(array, low, targetPivotIdx - 1, steps, finalized, sortedVals);
+            quickSortTraceSteps(array, targetPivotIdx + 1, high, steps, finalized, sortedVals);
+        }
+
+        public static java.util.List<SortingStep> generateMergeSortSteps(BlockSegment[] initial) {
+            BlockSegment[] array = initial.clone();
+            int[] sortedVals = getSortedValues(initial);
+            java.util.List<SortingStep> steps = new java.util.ArrayList<>();
+            boolean[] finalized = new boolean[array.length];
+            mergeSortTraceSteps(array, 0, array.length - 1, steps, finalized, sortedVals);
+            return steps;
+        }
+
+        private static void mergeSortTraceSteps(BlockSegment[] array, int l, int r, java.util.List<SortingStep> steps, boolean[] finalized, int[] sortedVals) {
+            if (l < r) {
+                int m = l + (r - l) / 2;
+                mergeSortTraceSteps(array, l, m, steps, finalized, sortedVals);
+                mergeSortTraceSteps(array, m + 1, r, steps, finalized, sortedVals);
+                mergeTraceSteps(array, l, m, r, steps, finalized, sortedVals);
+            }
+        }
+
+        private static void mergeTraceSteps(BlockSegment[] array, int l, int m, int r, java.util.List<SortingStep> steps, boolean[] finalized, int[] sortedVals) {
+            int p1 = l;
+            int p2 = m + 1;
+            for (int k = l; k <= r; k++) {
+                if (p1 > m) {
+                    break;
+                } else if (p2 > r) {
+                    break;
+                } else {
+                    if (compare(array[p1], array[p2]) <= 0) {
+                        SortingStep step = new SortingStep();
+                        step.correctIndex = p1;
+                        step.targetIndex = k;
+                        step.nextCursor = (p1 + 1 <= m) ? p1 + 1 : p2;
+                        step.startIndex = l;
+                        step.wrapIndex = l;
+                        step.description = String.format("Select %d at index %d to merge at index %d.", array[p1].getRawValue(), p1, k);
+                        step.activeLeft = l;
+                        step.activeRight = r;
+                        step.headA = p1;
+                        step.headB = p2;
+                        step.mergeTarget = k;
+                        step.mid = m;
+                        
+                        step.greenBlocks = new boolean[array.length];
+                        for (int x = 0; x < array.length; x++) {
+                            step.greenBlocks[x] = finalized[x] && (array[x].getRawValue() == sortedVals[x]);
+                        }
+                        steps.add(step);
+                        p1++;
+                    } else {
+                        SortingStep step = new SortingStep();
+                        step.correctIndex = p2;
+                        step.targetIndex = k;
+                        step.nextCursor = (p2 + 1 <= r) ? p2 + 1 : p1;
+                        step.startIndex = l;
+                        step.wrapIndex = l;
+                        step.description = String.format("Select %d at index %d and shift to merge index %d.", array[p2].getRawValue(), p2, k);
+                        step.activeLeft = l;
+                        step.activeRight = r;
+                        step.headA = p1;
+                        step.headB = p2;
+                        step.mergeTarget = k;
+                        step.mid = m;
+                        
+                        shiftElement(array, p2, k);
+                        shiftBooleanElement(finalized, p2, k);
+                        
+                        step.greenBlocks = new boolean[array.length];
+                        for (int x = 0; x < array.length; x++) {
+                            step.greenBlocks[x] = finalized[x] && (array[x].getRawValue() == sortedVals[x]);
+                        }
+                        steps.add(step);
+                        p1++;
+                        m++;
+                        p2++;
+                    }
+                }
+            }
+            for (int k = l; k <= r; k++) {
+                finalized[k] = true;
+            }
+            if (!steps.isEmpty()) {
+                boolean[] finalGreen = new boolean[array.length];
+                for (int x = 0; x < array.length; x++) {
+                    finalGreen[x] = finalized[x] && (array[x].getRawValue() == sortedVals[x]);
+                }
+                steps.get(steps.size() - 1).greenBlocks = finalGreen;
+            }
+        }
+    }
+
+    // --- View ---
+
+    public static class ChromaCascadeView {
+        private ChromaCascadeModel model;
+        private Canvas canvas;
+        private GraphicsContext gc;
+
+        // HUD elements
+        private Label scoreValLabel;
+        private Label timerValLabel;
+        private Label metricsValLabel;
+        private Label targetValLabel;
+        private ListView<String> logListView;
+
+        public ChromaCascadeView(ChromaCascadeModel model) {
+            this.model = model;
+            this.canvas = new Canvas(800, 400);
+            this.gc = canvas.getGraphicsContext2D();
+        }
+
+        public Canvas getCanvas() {
+            return canvas;
+        }
+
+        public void setScoreValLabel(Label scoreValLabel) {
+            this.scoreValLabel = scoreValLabel;
+        }
+
+        public void setTimerValLabel(Label timerValLabel) {
+            this.timerValLabel = timerValLabel;
+        }
+
+        public void setMetricsValLabel(Label metricsValLabel) {
+            this.metricsValLabel = metricsValLabel;
+        }
+
+        public void setTargetValLabel(Label targetValLabel) {
+            this.targetValLabel = targetValLabel;
+        }
+
+        public void setLogListView(ListView<String> logListView) {
+            this.logListView = logListView;
+        }
+
+        public void draw() {
+            // Draw background
+            gc.setFill(Color.web("#0b0f19")); // sleeker darker color
+            gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+
+            // Draw Canvas structural outline
+            gc.setStroke(Color.web("#1e293b"));
+            gc.setLineWidth(2.0);
+            gc.strokeRoundRect(10, 10, canvas.getWidth() - 20, canvas.getHeight() - 20, 8, 8);
+
+            // Draw horizontal row segments
+            PuzzleRow row = model.getPuzzleRow();
+            if (row != null && row.getCurrentSet() != null) {
+                BlockSegment[] set = row.getCurrentSet();
+                int size = set.length;
+
+                double totalWidth = 700.0; // wider blocks layout
+                double boxHeight = 85.0;
+                double boxWidth = totalWidth / size;
+                double startX = (canvas.getWidth() - totalWidth) / 2.0;
+                double startY = (canvas.getHeight() - boxHeight) / 2.0;
+
+                // Extract step information if available
+                int activeLeft = -1;
+                int activeRight = -1;
+                int pivotIndex = -1;
+                int headA = -1;
+                int headB = -1;
+                int mergeTarget = -1;
+                int mid = -1;
+
+                if (model.getSteps() != null && !model.getSteps().isEmpty()) {
+                    int stepIdx = model.getCurrentStep();
+                    if (stepIdx < model.getSteps().size()) {
+                        SortingStep step = model.getSteps().get(stepIdx);
+                        activeLeft = step.activeLeft;
+                        activeRight = step.activeRight;
+                        pivotIndex = step.pivotIndex;
+                        headA = step.headA;
+                        headB = step.headB;
+                        mergeTarget = step.mergeTarget;
+                        mid = step.mid;
+                    }
+                }
+
+                // Mode accent color helper
+                String targetAlgo = model.getTargetAlgorithm();
+                Color modeAccent = Color.web("#f59e0b"); // default gold
+                if (targetAlgo.equalsIgnoreCase("Selection Sort")) {
+                    modeAccent = Color.web("#10b981");
+                } else if (targetAlgo.equalsIgnoreCase("Merge Sort")) {
+                    modeAccent = Color.web("#06b6d4");
+                }
+
+                // 1. Draw dashed active sub-array boundary
+                if (activeLeft != -1 && activeRight != -1 && model.getFreezeFrames() <= 0) {
+                    if (targetAlgo.equalsIgnoreCase("Merge Sort")) {
+                        // Draw Subarray A frame (upper level: startY - 60)
+                        if (mid != -1 && mid >= activeLeft) {
+                            double ax1 = startX + activeLeft * boxWidth + 2;
+                            double ax2 = startX + (mid + 1) * boxWidth - 2;
+                            double ay1 = startY - 60 - 10;
+                            double ay2 = startY - 60 + boxHeight + 10;
+
+                            gc.setStroke(Color.web("#06b6d4", 0.6));
+                            gc.setLineWidth(1.2);
+                            gc.setLineDashes(new double[]{4.0, 3.0});
+                            gc.strokeRoundRect(ax1, ay1, ax2 - ax1, ay2 - ay1, 6, 6);
+                            gc.setLineDashes(null);
+
+                            gc.setFill(Color.web("#06b6d4", 0.7));
+                            gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                            gc.fillText("SUBARRAY A (SORTED)", ax1 + 6, ay1 - 4);
+                        }
+
+                        // Draw Subarray B frame (upper level: startY - 60)
+                        if (mid != -1 && activeRight >= mid + 1) {
+                            double bx1 = startX + (mid + 1) * boxWidth + 2;
+                            double bx2 = startX + (activeRight + 1) * boxWidth - 2;
+                            double by1 = startY - 60 - 10;
+                            double by2 = startY - 60 + boxHeight + 10;
+
+                            gc.setStroke(Color.web("#06b6d4", 0.6));
+                            gc.setLineWidth(1.2);
+                            gc.setLineDashes(new double[]{4.0, 3.0});
+                            gc.strokeRoundRect(bx1, by1, bx2 - bx1, by2 - by1, 6, 6);
+                            gc.setLineDashes(null);
+
+                            gc.setFill(Color.web("#06b6d4", 0.7));
+                            gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                            gc.fillText("SUBARRAY B (SORTED)", bx1 + 6, by1 - 4);
+                        }
+
+                        // Draw Merged Output frame (lower level: startY + 60)
+                        double ox1 = startX + activeLeft * boxWidth + 2;
+                        double ox2 = startX + (activeRight + 1) * boxWidth - 2;
+                        double oy1 = startY + 60 - 10;
+                        double oy2 = startY + 60 + boxHeight + 10;
+
+                        gc.setStroke(Color.web("#10b981", 0.6));
+                        gc.setLineWidth(1.2);
+                        gc.setLineDashes(new double[]{4.0, 3.0});
+                        gc.strokeRoundRect(ox1, oy1, ox2 - ox1, oy2 - oy1, 6, 6);
+                        gc.setLineDashes(null);
+
+                        gc.setFill(Color.web("#10b981", 0.7));
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                        gc.fillText("MERGED OUTPUT SLOT", ox1 + 6, oy1 - 4);
+                    } else {
+                        double rx1 = startX + activeLeft * boxWidth + 2;
+                        double rx2 = startX + (activeRight + 1) * boxWidth - 2;
+                        double ry1 = startY - 15;
+                        double ry2 = startY + boxHeight + 15;
+
+                        gc.setStroke(Color.web("#475569", 0.6));
+                        gc.setLineWidth(1.5);
+                        gc.setLineDashes(new double[]{6.0, 4.0});
+                        gc.strokeRoundRect(rx1, ry1, rx2 - rx1, ry2 - ry1, 6, 6);
+                        gc.setLineDashes(null);
+
+                        gc.setFill(Color.web("#94a3b8", 0.7));
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 9));
+                        gc.fillText("ACTIVE SUBARRAY", rx1 + 6, ry1 - 4);
+                    }
+                }
+
+                for (int i = 0; i < size; i++) {
+                    BlockSegment segment = set[i];
+                    if (segment == null) continue;
+
+                    double x = startX + i * boxWidth + 4;
+                    double y = startY;
+                    if (targetAlgo.equalsIgnoreCase("Merge Sort") && activeLeft != -1 && activeRight != -1 && model.getFreezeFrames() <= 0) {
+                        if (i >= activeLeft && i < mergeTarget) {
+                            y = startY + 60;
+                        } else if (i >= mergeTarget && i <= activeRight) {
+                            y = startY - 60;
+                        }
+                    }
+                    double w = boxWidth - 8;
+                    double h = boxHeight;
+
+                    // Color based on pre-computed step greenBlocks
+                    boolean isSorted = false;
+                    if (model.getSteps() != null && !model.getSteps().isEmpty()) {
+                        int stepIdx = model.getCurrentStep();
+                        if (stepIdx == 0) {
+                            isSorted = false;
+                        } else if (stepIdx >= model.getSteps().size()) {
+                            isSorted = true;
+                        } else {
+                            isSorted = model.getSteps().get(stepIdx - 1).greenBlocks[i];
+                        }
+                    } else {
+                        isSorted = (i < model.getSortedCount());
+                    }
+                    
+                    // Highlight configurations
+                    boolean isPivot = (i == pivotIndex && model.getFreezeFrames() <= 0);
+                    boolean isHeadA = (i == headA && model.getFreezeFrames() <= 0);
+                    boolean isHeadB = (i == headB && model.getFreezeFrames() <= 0);
+
+                    Color segmentColor = isSorted ? Color.web("#10b981") : Color.web("#334155"); // green if sorted, slate if unsorted
+
+                    // Glow background shadow for sorted elements
+                    if (isSorted) {
+                        gc.setFill(segmentColor.deriveColor(0, 1, 1, 0.15));
+                        gc.fillRoundRect(x - 2, y - 2, w + 4, h + 4, 6, 6);
+                    }
+
+                    // Block gradient
+                    LinearGradient gradient = new LinearGradient(
+                            0, 0, 0, 1, true, CycleMethod.NO_CYCLE,
+                            new Stop(0, segmentColor.deriveColor(0, 1, 1.1, 0.95)),
+                            new Stop(1, segmentColor.deriveColor(0, 1, 0.85, 0.95))
+                    );
+                    gc.setFill(gradient);
+                    gc.fillRoundRect(x, y, w, h, 4, 4);
+
+                    // Border (colored if active pivot or heads)
+                    Color borderCol = segmentColor.deriveColor(0, 1, 1.2, 1.0);
+                    if (isPivot) {
+                        borderCol = Color.web("#ea580c"); // Orange
+                    } else if (isHeadA || isHeadB) {
+                        borderCol = Color.web("#06b6d4"); // Cyan
+                    }
+                    gc.setStroke(borderCol);
+                    gc.setLineWidth(isPivot || isHeadA || isHeadB ? 2.0 : 1.0);
+                    gc.strokeRoundRect(x, y, w, h, 4, 4);
+
+                    // Selection cursor highlight
+                    if (i == model.getActiveSegmentCursor() && model.getFreezeFrames() <= 0) {
+                        gc.setStroke(Color.web("#f59e0b")); // Neon Gold
+                        gc.setLineWidth(2.5);
+                        gc.strokeRoundRect(x - 1, y - 1, w + 2, h + 2, 4, 4);
+                    }
+
+                    // Draw Badges above blocks
+                    if (isPivot) {
+                        double badgeW = Math.min(w, 42.0);
+                        double badgeX = x + (w - badgeW) / 2.0;
+                        gc.setFill(Color.web("#ea580c"));
+                        gc.fillRoundRect(badgeX, y - 17, badgeW, 13, 3, 3);
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                        gc.fillText("PIVOT", badgeX + (badgeW - 25) / 2.0, y - 8);
+                    } else if (isHeadA) {
+                        double badgeW = Math.min(w, 42.0);
+                        double badgeX = x + (w - badgeW) / 2.0;
+                        gc.setFill(Color.web("#06b6d4"));
+                        gc.fillRoundRect(badgeX, y - 17, badgeW, 13, 3, 3);
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                        gc.fillText("HEAD A", badgeX + (badgeW - 30) / 2.0, y - 8);
+                    } else if (isHeadB) {
+                        double badgeW = Math.min(w, 42.0);
+                        double badgeX = x + (w - badgeW) / 2.0;
+                        gc.setFill(Color.web("#06b6d4"));
+                        gc.fillRoundRect(badgeX, y - 17, badgeW, 13, 3, 3);
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                        gc.fillText("HEAD B", badgeX + (badgeW - 30) / 2.0, y - 8);
+                    }
+
+                    // Centered raw integer value
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
+                    String valStr = String.valueOf(segment.getRawValue());
+                    double textWidth = 10 * valStr.length();
+                    gc.fillText(valStr, x + (w - textWidth) / 2.0, y + 46);
+
+                    // Weight detail
+                    String weightStr = String.format("%.1f", segment.calculateSortWeight());
+                    gc.setFont(Font.font("Consolas", FontWeight.NORMAL, 9.0));
+                    gc.setFill(Color.web("#94a3b8", 0.8));
+                    double wStrWidth = 5.5 * weightStr.length();
+                    gc.fillText(weightStr, x + (w - wStrWidth) / 2.0, y + h - 6);
+                }
+
+                // Draw greater than / less than comparison badge between Quick Sort cursor and pivot
+                if (targetAlgo.equalsIgnoreCase("Quick Sort") && pivotIndex != -1 && model.getFreezeFrames() <= 0) {
+                    int cursorIdx = model.getActiveSegmentCursor();
+                    if (cursorIdx != -1 && cursorIdx != pivotIndex && cursorIdx < set.length && !model.getSteps().get(model.getCurrentStep()).greenBlocks[cursorIdx]) {
+                        double cx = startX + cursorIdx * boxWidth + boxWidth / 2.0;
+                        double px = startX + pivotIndex * boxWidth + boxWidth / 2.0;
+                        double midX = (cx + px) / 2.0;
+                        double midY = startY - 35;
+
+                        int valCursor = set[cursorIdx].getRawValue();
+                        int valPivot = set[pivotIndex].getRawValue();
+                        String op = "=";
+                        if (valCursor < valPivot) {
+                            op = "<";
+                        } else if (valCursor > valPivot) {
+                            op = ">";
+                        }
+
+                        // Draw operator circle background
+                        gc.setFill(Color.web("#0b0f19"));
+                        gc.setStroke(Color.web("#f59e0b"));
+                        gc.setLineWidth(1.5);
+                        gc.fillOval(midX - 15, midY - 15, 30, 30);
+                        gc.strokeOval(midX - 15, midY - 15, 30, 30);
+
+                        // Draw operator text
+                        gc.setFill(Color.web("#f59e0b"));
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
+                        gc.fillText(op, midX - 5.5, midY + 5.5);
+                    }
+                }
+
+                // 2. Draw target slot pointer arrow
+                if (mergeTarget != -1 && model.getFreezeFrames() <= 0) {
+                    double arrowX = startX + mergeTarget * boxWidth + boxWidth / 2.0;
+                    double arrowYHead = startY - 8;
+                    double arrowYTail = startY - 26;
+                    if (targetAlgo.equalsIgnoreCase("Merge Sort")) {
+                        arrowYHead = startY + 60 - 8;
+                        arrowYTail = startY + 60 - 26;
+                    }
+
+                    gc.setStroke(modeAccent);
+                    gc.setLineWidth(2.5);
+                    gc.strokeLine(arrowX, arrowYTail, arrowX, arrowYHead);
+
+                    gc.strokeLine(arrowX - 4, arrowYHead - 4, arrowX, arrowYHead);
+                    gc.strokeLine(arrowX + 4, arrowYHead - 4, arrowX, arrowYHead);
+
+                    gc.setFill(modeAccent);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 9));
+                    String targetLabel = "TARGET SLOT";
+                    gc.fillText(targetLabel, arrowX - 28, arrowYTail - 4);
+                }
+            }
+
+            // Draw completed wave banner overlay
+            if (model.getFreezeFrames() > 0) {
+                double overlayY = (canvas.getHeight() - 100.0) / 2.0;
+                gc.setFill(Color.web("#0b0f19", 0.9));
+                gc.fillRect(10, overlayY, canvas.getWidth() - 20, 100);
+
+                gc.setStroke(Color.web("#10b981", 0.8));
+                gc.setLineWidth(1.5);
+                gc.strokeRect(10, overlayY, canvas.getWidth() - 20, 100);
+
+                gc.setFill(Color.web("#10b981"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
+                String bannerMsg = "WAVE COMPLETED!";
+                gc.fillText(bannerMsg, (canvas.getWidth() - 14 * bannerMsg.length()) / 2.0, overlayY + 44);
+
+                gc.setFill(Color.WHITE);
+                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                gc.fillText("Generating next scrambled set...", canvas.getWidth() / 2.0 - 80, overlayY + 74);
+            }
+
+            // Draw Game Over Screen Mask
+            if (model.isGameOver()) {
+                gc.setFill(Color.web("#0b0f19", 0.95));
+                gc.fillRect(10, 10, canvas.getWidth() - 20, canvas.getHeight() - 20);
+
+                gc.setStroke(Color.web("#ef4444", 0.7));
+                gc.setLineWidth(1.5);
+                gc.strokeRoundRect(200, 100, 400, 180, 6, 6);
+                gc.setFill(Color.web("#0b0f19", 0.98));
+                gc.fillRoundRect(200, 100, 400, 180, 6, 6);
+
+                gc.setFill(Color.web("#ef4444"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 24));
+                gc.fillText("TIME EXPIRED", 325, 145);
+
+                gc.setFill(Color.WHITE);
+                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                gc.fillText("Final Score: " + model.getScore() + " | Completed Waves: " + model.getCompletedWavesCount(), 280, 185);
+
+                gc.setFill(Color.web("#94a3b8"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+                gc.fillText("Press R to Restart | ESC to Main Menu", 300, 230);
+            }
+
+            // Visual Effect: Error Red Border Flash
+            if (model.getErrorFlashFrames() > 0) {
+                gc.setStroke(Color.web("#f43f5e", 0.6 * (model.getErrorFlashFrames() / 15.0)));
+                gc.setLineWidth(16.0);
+                gc.strokeRect(10, 10, canvas.getWidth() - 20, canvas.getHeight() - 20);
+                model.setErrorFlashFrames(model.getErrorFlashFrames() - 1);
+            }
+
+            // Visual Effect: Low Time Pulse (Red pulsing overlay when time <= 5s)
+            if (model.getCountdownTimer() <= 5 && !model.isGameOver() && model.getFreezeFrames() <= 0 && model.getCountdownTimer() > 0) {
+                double pulse = 0.12 + 0.12 * Math.sin(System.currentTimeMillis() / 120.0);
+                gc.setFill(Color.web("#ef4444", pulse));
+                gc.fillRect(10, 10, canvas.getWidth() - 20, canvas.getHeight() - 20);
+            }
+        }
+
+        public void updateHUD() {
+            if (scoreValLabel != null) {
+                scoreValLabel.setText(String.format("SCORE: %05d", model.getScore()));
+            }
+            if (timerValLabel != null) {
+                int rem = model.getCountdownTimer();
+                timerValLabel.setText(rem + "s");
+                if (rem <= 5) {
+                    timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f43f5e; -fx-font-weight: bold; -fx-effect: dropshadow(three-pass-box, rgba(244,63,94,0.6), 10, 0, 0, 0);");
+                } else {
+                    timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f59e0b; -fx-font-weight: bold;");
+                }
+            }
+            if (targetValLabel != null) {
+                targetValLabel.setText("MODE: " + model.getTargetAlgorithm().toUpperCase() + " | WAVE: " + (model.getCompletedWavesCount() + 1));
+            }
+        }
+    }
+
+    // --- Controller ---
+
+    public static class ChromaCascadeController {
+        private ChromaCascadeModel model;
+        private ChromaCascadeView view;
+        private Random random = new Random();
+        private AnimationTimer animationTimer;
+        public ListView<String> logListView;
+
+        public ChromaCascadeController(ChromaCascadeModel model, ChromaCascadeView view) {
+            this.model = model;
+            this.view = view;
+            ChromaCascadeApp.controllerInstance = this;
+        }
+
+        public void setAnimationTimer(AnimationTimer animationTimer) {
+            this.animationTimer = animationTimer;
+        }
+
+        public void initializeGame() {
+            model.setScore(0);
+            model.setCompletedWavesCount(0);
+            
+            int startingTime = model.getTargetAlgorithm().equalsIgnoreCase("Selection Sort") ? 20 : 40;
+            model.setCountdownTimer(startingTime);
+            
+            model.setLastSortDurationNs(0);
+            model.setGameOver(false);
+            model.setFreezeFrames(0);
+            model.getSystemStatusLog().clear();
+            model.getMemoryRegisters().clear();
+
+            spawnNewPuzzleSet();
+
+            addLogMessage("PUZZLE ENGINE: System ready. Countdown ticker initialized.");
+            addLogMessage("STATUS: Solve waves using " + model.getTargetAlgorithm() + "!");
+        }
+
+        public void spawnNewPuzzleSet() {
+            int completed = model.getCompletedWavesCount();
+            int length = Math.min(12, 8 + completed / 4);
+            model.setWaveErrors(0);
+
+            PuzzleRow row = null;
+            BlockSegment[] set = null;
+            while (true) {
+                row = new PuzzleRow(length);
+                set = row.getCurrentSet();
+                for (int i = 0; i < length; i++) {
+                    int val = random.nextInt(50) + 1;
+                    BlockSegment segment = (val % 2 != 0) ? new OddSegment(val, i) : new EvenSegment(val, i);
+                    row.setSegment(i, segment);
+                }
+                if (GridSorter.countInversions(set) > 0) {
+                    break;
+                }
+            }
+            model.setPuzzleRow(row);
+            model.setSortedCount(0);
+            model.getMoveHistory().clear();
+
+            java.util.List<SortingStep> stepsList;
+            String mode = model.getTargetAlgorithm();
+            if (mode.equalsIgnoreCase("Quick Sort")) {
+                stepsList = GridSorter.generateQuickSortSteps(set);
+            } else if (mode.equalsIgnoreCase("Merge Sort")) {
+                stepsList = GridSorter.generateMergeSortSteps(set);
+            } else {
+                stepsList = GridSorter.generateSelectionSortSteps(set);
+            }
+            model.setSteps(stepsList);
+            model.setCurrentStep(0);
+
+            int startCursor = (stepsList != null && !stepsList.isEmpty()) ? stepsList.get(0).startIndex : 0;
+            model.setActiveSegmentCursor(startCursor);
+
+            addLogMessage("SPAWN: Generated wave of size " + length);
+            addLogMessage("STATUS: Move using [A]/[D], shift with [ENTER]!");
+        }
+
+        public void handleKeyPress(KeyCode code) {
+            if (model.isGameOver()) {
+                if (code == KeyCode.R) {
+                    initializeGame();
+                    if (animationTimer != null) {
+                        animationTimer.start();
+                    }
+                }
+                return;
+            }
+
+            if (model.getFreezeFrames() > 0) {
+                return;
+            }
+
+            PuzzleRow row = model.getPuzzleRow();
+            if (row == null || row.getCurrentSet() == null) {
+                return;
+            }
+            BlockSegment[] set = row.getCurrentSet();
+            int length = set.length;
+
+            switch (code) {
+                case A:
+                    int cursorA = model.getActiveSegmentCursor();
+                    int prevCursor = cursorA - 1;
+                    if (prevCursor < 0) {
+                        prevCursor = length - 1;
+                    }
+                    model.setActiveSegmentCursor(prevCursor);
+                    SoundManager.playClick();
+                    break;
+
+                case D:
+                    int cursor = model.getActiveSegmentCursor();
+                    int nextCursor = cursor + 1;
+                    if (nextCursor >= length) {
+                        nextCursor = 0;
+                    }
+                    model.setActiveSegmentCursor(nextCursor);
+                    SoundManager.playClick();
+                    break;
+
+                case ENTER:
+                    executeShiftAction();
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        private void executeShiftAction() {
+            PuzzleRow row = model.getPuzzleRow();
+            if (row == null || row.getCurrentSet() == null) return;
+            BlockSegment[] set = row.getCurrentSet();
+            int cursor = model.getActiveSegmentCursor();
+            
+            int currentStepIdx = model.getCurrentStep();
+            java.util.List<SortingStep> steps = model.getSteps();
+            
+            if (steps == null || currentStepIdx >= steps.size()) {
+                return;
+            }
+            
+            SortingStep step = steps.get(currentStepIdx);
+            
+            if (cursor == step.correctIndex) {
+                int val = set[cursor].getRawValue();
+                GridSorter.shiftElement(set, step.correctIndex, step.targetIndex);
+                
+                SoundManager.playSuccess();
+                
+                model.setCurrentStep(currentStepIdx + 1);
+                
+                if (currentStepIdx + 1 < steps.size()) {
+                    model.setActiveSegmentCursor(steps.get(currentStepIdx + 1).startIndex);
+                }
+                
+                addLogMessage(String.format("CORRECT: Value %d shifted to index %d.", val, step.targetIndex));
+                
+                if (model.getCurrentStep() >= steps.size()) {
+                    checkWinCondition();
+                }
+            } else {
+                SoundManager.playFailure();
+                model.setErrorFlashFrames(15);
+                model.setWaveErrors(model.getWaveErrors() + 1);
+                
+                int currentTimer = model.getCountdownTimer();
+                int newTimer = Math.max(0, currentTimer - 3);
+                model.setCountdownTimer(newTimer);
+                if (newTimer == 0) {
+                    model.setGameOver(true);
+                    SoundManager.playGameOver();
+                }
+                
+                model.setScore(Math.max(0, model.getScore() - 25));
+                model.setActiveSegmentCursor(step.startIndex);
+                
+                addLogMessage(String.format("INCORRECT: Selected block %d is invalid! Penalty applied.", cursor));
+            }
+        }
+
+        private void checkWinCondition() {
+            SoundManager.playWaveClear();
+            
+            int base = 100;
+            int speedBonus = Math.max(0, model.getCountdownTimer() * 10 - model.getWaveErrors() * 30);
+            int waveScore = base + speedBonus;
+            model.setScore(model.getScore() + waveScore);
+            
+            int additionalTime = model.getTargetAlgorithm().equalsIgnoreCase("Merge Sort") ? 30 : 10;
+            model.setCountdownTimer(model.getCountdownTimer() + additionalTime);
+            model.setCompletedWavesCount(model.getCompletedWavesCount() + 1);
+            model.setFreezeFrames(30);
+            
+            addLogMessage(String.format("VERIFIED: Clear via %s (+%d PTS, +%ds)!", model.getTargetAlgorithm(), waveScore, additionalTime));
+        }
+
+        public void addLogMessage(String msg) {
+            ObservableList<String> logs = model.getSystemStatusLog();
+            logs.add(msg);
+            if (logs.size() > 20) {
+                logs.remove(0);
+            }
+            if (logListView != null) {
+                logListView.scrollTo(logs.size() - 1);
+            }
+        }
+
+        // Simulates external update events triggering safety stack overflow check
+        public void triggerSimulatedUpdate() {
+            PuzzleRow row = model.getPuzzleRow();
+            if (row == null || row.getCurrentSet() == null) return;
+
+            int val = random.nextInt(50) + 1;
+            BlockSegment injected = (val % 2 != 0) ? new OddSegment(val, -1) : new EvenSegment(val, -1);
+            // Index L is out of bounds for the current set, triggering exception
+            int size = row.getCurrentSet().length;
+            row.simulateExternalUpdate(injected, size);
+        }
+    }
+
+    // --- Main Entry Point ---
+
+    @Override
+    public void start(Stage primaryStage) {
+        // MVC Integration
+        ChromaCascadeModel model = new ChromaCascadeModel();
+        ChromaCascadeView view = new ChromaCascadeView(model);
+        ChromaCascadeController controller = new ChromaCascadeController(model, view);
+
+        // Root container to swap layouts (Menu vs Game)
+        StackPane rootContainer = new StackPane();
+        rootContainer.setStyle("-fx-background-color: #0b0f19;");
+
+        // 1. Build SLEEK MAIN MENU LAYOUT
+        VBox menuLayout = new VBox(25);
+        menuLayout.setAlignment(Pos.CENTER);
+        menuLayout.setPadding(new Insets(50));
+        menuLayout.setStyle("-fx-background-color: #0b0f19;");
+
+        Label menuTitle = new Label("SORT PULSE");
+        menuTitle.setStyle("-fx-font-family: 'Segoe UI', 'Outfit', sans-serif; -fx-font-size: 44px; -fx-font-weight: bold; -fx-text-fill: #10b981; -fx-effect: dropshadow(three-pass-box, rgba(16,185,129,0.4), 12, 0, 0, 0);");
+        
+        Label menuSubtitle = new Label("TIMED PUZZLE BLITZ ENGINE");
+        menuSubtitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #64748b; -fx-padding: -15px 0 20px 0;");
+
+        Button selectionBtn = new Button("SELECTION SORT");
+        selectionBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
+        selectionBtn.setOnMouseEntered(e -> selectionBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #10b981; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(16,185,129,0.3), 8, 0, 0, 0);"));
+        selectionBtn.setOnMouseExited(e -> selectionBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
+
+        Button quickBtn = new Button("QUICK SORT");
+        quickBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
+        quickBtn.setOnMouseEntered(e -> quickBtn.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #f59e0b; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(245,158,11,0.3), 8, 0, 0, 0);"));
+        quickBtn.setOnMouseExited(e -> quickBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
+
+        Button mergeBtn = new Button("MERGE SORT");
+        mergeBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
+        mergeBtn.setOnMouseEntered(e -> mergeBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #3b82f6; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(59,130,246,0.3), 8, 0, 0, 0);"));
+        mergeBtn.setOnMouseExited(e -> mergeBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
+
+        Label menuGuide = new Label("Press ESC to Quit Game");
+        menuGuide.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-text-fill: #475569; -fx-padding: 20px 0 0 0;");
+
+        menuLayout.getChildren().addAll(menuTitle, menuSubtitle, selectionBtn, quickBtn, mergeBtn, menuGuide);
+
+        // 2. Build SLEEK MINIMAL GAME LAYOUT
+        VBox gameLayout = new VBox(0);
+        gameLayout.setAlignment(Pos.CENTER);
+        gameLayout.setStyle("-fx-background-color: #0b0f19;");
+
+        // Top HUD Header with spacing above blocks
+        VBox topHud = new VBox(8);
+        topHud.setPadding(new Insets(30, 0, 30, 0)); // 30px spacing above blocks
+        topHud.setAlignment(Pos.CENTER);
+
+        Label modeLabel = new Label("MODE: SELECTION SORT | WAVE: 1");
+        modeLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-text-fill: #10b981; -fx-font-weight: bold; -fx-letter-spacing: 1.5;");
+        view.setTargetValLabel(modeLabel);
+
+        Label timerVal = new Label("20s");
+        timerVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f59e0b; -fx-font-weight: bold;");
+        view.setTimerValLabel(timerVal);
+
+        Label scoreVal = new Label("SCORE: 00000");
+        scoreVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 16px; -fx-text-fill: #ffffff; -fx-font-weight: bold;");
+        view.setScoreValLabel(scoreVal);
+
+        topHud.getChildren().addAll(modeLabel, timerVal, scoreVal);
+
+        // Center Canvas Wrapper
+        StackPane canvasWrapper = new StackPane();
+        canvasWrapper.setPadding(new Insets(10, 50, 10, 50));
+        canvasWrapper.getChildren().add(view.getCanvas());
+
+        // Minimal HUD Log list
+        HBox bottomPanel = new HBox();
+        bottomPanel.setPadding(new Insets(20, 50, 20, 50));
+        bottomPanel.setAlignment(Pos.CENTER);
+
+        ListView<String> logView = new ListView<>(model.getSystemStatusLog());
+        logView.setPrefHeight(90);
+        logView.setPrefWidth(700); // Centered and expanded to match block area width
+        logView.setStyle("-fx-background-color: #0f172a; -fx-control-inner-background: #0f172a; -fx-text-fill: #e2e8f0; -fx-font-family: 'Consolas', monospace; -fx-font-size: 11px; -fx-border-color: #1e293b; -fx-border-radius: 4px;");
+        logView.setFocusTraversable(false);
+        view.setLogListView(logView);
+        controller.logListView = logView;
+
+        bottomPanel.getChildren().add(logView);
+
+        // Bottom Controls Layout Guide
+        HBox controlsBar = new HBox();
+        controlsBar.setPadding(new Insets(10));
+        controlsBar.setAlignment(Pos.CENTER);
+        Text controlGuide = new Text("CONTROLS: [A] Move Left | [D] Move Right | [ENTER] Select/Shift | [R] Restart | [ESC] Main Menu");
+        controlGuide.setFill(Color.web("#64748b"));
+        controlGuide.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-style: italic; -fx-font-size: 11px;");
+        controlsBar.getChildren().add(controlGuide);
+
+        gameLayout.getChildren().addAll(topHud, canvasWrapper, bottomPanel, controlsBar);
+
+        // Add Menu Initially
+        rootContainer.getChildren().add(menuLayout);
+
+        Scene scene = new Scene(rootContainer);
+        primaryStage.setScene(scene);
+        primaryStage.setTitle("Sort Pulse: Timed Puzzle Blitz");
+
+        // Borderless & Fullscreen Settings
+        primaryStage.initStyle(StageStyle.UNDECORATED);
+        primaryStage.setFullScreen(true);
+        primaryStage.setFullScreenExitHint("");
+        primaryStage.setFullScreenExitKeyCombination(javafx.scene.input.KeyCombination.NO_MATCH);
+
+        // Setup Mode Button actions to enter Play state
+        selectionBtn.setOnAction(event -> {
+            showTutorialOverlay(rootContainer, "Selection Sort", () -> {
+                model.setTargetAlgorithm("Selection Sort");
+                model.setGameState("PLAYING");
+                controller.initializeGame();
+                rootContainer.getChildren().setAll(gameLayout);
+                gameLayout.requestFocus();
+            });
+        });
+
+        quickBtn.setOnAction(event -> {
+            showTutorialOverlay(rootContainer, "Quick Sort", () -> {
+                model.setTargetAlgorithm("Quick Sort");
+                model.setGameState("PLAYING");
+                controller.initializeGame();
+                rootContainer.getChildren().setAll(gameLayout);
+                gameLayout.requestFocus();
+            });
+        });
+
+        mergeBtn.setOnAction(event -> {
+            showTutorialOverlay(rootContainer, "Merge Sort", () -> {
+                model.setTargetAlgorithm("Merge Sort");
+                model.setGameState("PLAYING");
+                controller.initializeGame();
+                rootContainer.getChildren().setAll(gameLayout);
+                gameLayout.requestFocus();
+            });
+        });
+
+        // Key Listeners
+        scene.setOnKeyPressed(event -> {
+            KeyCode code = event.getCode();
+            if (code == KeyCode.ESCAPE) {
+                if (model.getGameState().equalsIgnoreCase("PLAYING") || model.getGameState().equalsIgnoreCase("GAME_OVER")) {
+                    model.setGameState("MENU");
+                    rootContainer.getChildren().setAll(menuLayout);
+                } else {
+                    Platform.exit();
+                    System.exit(0);
+                }
+            } else {
+                if (model.getGameState().equalsIgnoreCase("PLAYING") || model.getGameState().equalsIgnoreCase("GAME_OVER")) {
+                    controller.handleKeyPress(code);
+                }
+            }
+        });
+
+        // Animation Timer Heartbeat Loop
+        AnimationTimer loop = new AnimationTimer() {
+            private long lastTimerTickTime = 0;
+
+            @Override
+            public void handle(long now) {
+                if (model.getGameState().equalsIgnoreCase("MENU")) {
+                    return; // Skip loops while in menu
+                }
+
+                if (model.isGameOver()) {
+                    view.draw();
+                    view.updateHUD();
+                    return;
+                }
+
+                // Core 1-second countdown clock decay
+                if (lastTimerTickTime == 0) {
+                    lastTimerTickTime = now;
+                }
+                long elapsed = now - lastTimerTickTime;
+                if (elapsed >= 1_000_000_000L) {
+                    lastTimerTickTime = now;
+                    if (model.getFreezeFrames() <= 0) {
+                        model.setCountdownTimer(model.getCountdownTimer() - 1);
+                        if (model.getCountdownTimer() <= 0) {
+                            model.setCountdownTimer(0);
+                            model.setGameOver(true);
+                            SoundManager.playGameOver();
+                        }
+                    }
+                }
+
+                // Visual freeze frame tick decrement for popping animation
+                if (model.getFreezeFrames() > 0) {
+                    model.setFreezeFrames(model.getFreezeFrames() - 1);
+                    if (model.getFreezeFrames() == 0) {
+                        controller.spawnNewPuzzleSet();
+                    }
+                }
+
+                view.draw();
+                view.updateHUD();
+            }
+        };
+
+        controller.setAnimationTimer(loop);
+        loop.start();
+
+        primaryStage.show();
+        rootContainer.requestFocus();
+    }
+
+    private void showTutorialOverlay(StackPane root, String algorithm, Runnable onStartGame) {
+        VBox overlay = new VBox(15);
+        overlay.setAlignment(Pos.CENTER);
+        overlay.setPadding(new Insets(30));
+        overlay.setStyle("-fx-background-color: rgba(11, 15, 25, 0.98);");
+
+        String accentColor;
+        String descText = "";
+        String proTip;
+
+        if (algorithm.equalsIgnoreCase("Selection Sort")) {
+            accentColor = "#10b981"; // Emerald green
+            descText = "VISUAL PLAY GUIDE:\n1. PRESS [A]/[D] to move selection cursor left/right.\n2. SELECT the absolute minimum value from remaining grey blocks.\n3. PRESS [ENTER] on the minimum. It shifts left, turns green (sorted).";
+            proTip = "Pro Tip: Use the decimal weights rendered beneath each block to quickly compare values!";
+        } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
+            accentColor = "#f59e0b"; // Amber gold
+            descText = "VISUAL PLAY GUIDE:\n1. PIVOT is the rightmost block of active range.\n2. PRESS [A]/[D] to move selection cursor.\n3. PRESS [ENTER] on blocks smaller than/equal to pivot to shift them left. Finally shift pivot.";
+            proTip = "Pro Tip: Look at the orange PIVOT badge and follow the TARGET SLOT arrow to partition elements!";
+        } else {
+            accentColor = "#3b82f6"; // Dodge blue
+            descText = "VISUAL PLAY GUIDE:\n1. COMPARE the two subarray head blocks currently being merged.\n2. SELECT the smaller value of the two using the cursor.\n3. PRESS [ENTER] to shift it down into the output area.";
+            proTip = "Pro Tip: Focus on the cyan HEAD A and HEAD B badges; they highlight the two elements to compare!";
+        }
+
+        Label titleLabel = new Label(algorithm.toUpperCase() + " VISUAL PREVIEW");
+        titleLabel.setStyle("-fx-font-family: 'Segoe UI', 'Outfit', sans-serif; -fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: " + accentColor + "; -fx-effect: dropshadow(three-pass-box, " + accentColor + "66, 10, 0, 0, 0);");
+
+        Label descLabel = new Label(descText);
+        descLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #e2e8f0; -fx-line-spacing: 4px;");
+        descLabel.setWrapText(true);
+        descLabel.setMaxWidth(700);
+
+        // Canvas for animated sorting preview (expanded height for legend and keys)
+        Canvas canvas = new Canvas(700, 320);
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+
+        // 3. Step-by-Step Navigation Controls
+        final int[] currentStepHolder = {0};
+        final int maxSteps = algorithm.equalsIgnoreCase("Selection Sort") ? 11 : (algorithm.equalsIgnoreCase("Quick Sort") ? 9 : 5);
+
+        HBox navBox = new HBox(20);
+        navBox.setAlignment(Pos.CENTER);
+        navBox.setPadding(new Insets(5, 0, 5, 0));
+
+        Button prevBtn = new Button("PREV STEP");
+        prevBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 8px 20px; -fx-background-radius: 5px; -fx-cursor: hand; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 5px;");
+        
+        Label stepLabel = new Label(String.format("Step 1 of %d", maxSteps));
+        stepLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #f8fafc; -fx-font-weight: bold; -fx-min-width: 100; -fx-alignment: center;");
+        stepLabel.setAlignment(Pos.CENTER);
+
+        Button nextBtn = new Button("NEXT STEP");
+        nextBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 8px 20px; -fx-background-radius: 5px; -fx-cursor: hand; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 5px;");
+
+        navBox.getChildren().addAll(prevBtn, stepLabel, nextBtn);
+
+        prevBtn.setOnAction(e -> {
+            if (currentStepHolder[0] > 0) {
+                currentStepHolder[0]--;
+                stepLabel.setText(String.format("Step %d of %d", currentStepHolder[0] + 1, maxSteps));
+                SoundManager.playClick();
+            }
+        });
+
+        nextBtn.setOnAction(e -> {
+            if (currentStepHolder[0] < maxSteps - 1) {
+                currentStepHolder[0]++;
+                stepLabel.setText(String.format("Step %d of %d", currentStepHolder[0] + 1, maxSteps));
+                SoundManager.playClick();
+            }
+        });
+
+        VBox tipBox = new VBox(8);
+        tipBox.setPadding(new Insets(12));
+        tipBox.setMaxWidth(700);
+        tipBox.setStyle("-fx-background-color: #1e293b; -fx-border-color: " + accentColor + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-background-radius: 6px;");
+        Label tipLabel = new Label(proTip);
+        tipLabel.setWrapText(true);
+        tipLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #94a3b8; -fx-font-style: italic;");
+        tipBox.getChildren().add(tipLabel);
+
+        HBox btnBox = new HBox(20);
+        btnBox.setAlignment(Pos.CENTER);
+        btnBox.setPadding(new Insets(10, 0, 0, 0));
+
+        Button startBtn = new Button("START GAME");
+        startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;");
+        startBtn.setOnMouseEntered(e -> startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, " + accentColor + "66, 8, 0, 0, 0);"));
+        startBtn.setOnMouseExited(e -> startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;"));
+
+        Button backBtn = new Button("BACK");
+        backBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;");
+        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: #ef4444; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: #ef4444; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;"));
+        backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;"));
+
+        btnBox.getChildren().addAll(startBtn, backBtn);
+        overlay.getChildren().addAll(titleLabel, descLabel, canvas, navBox, tipBox, btnBox);
+
+        root.getChildren().add(overlay);
+        overlay.requestFocus();
+
+        AnimationTimer tutorialTimer = new AnimationTimer() {
+            private double[] selectionVals = {15, 8, 22, 5, 12};
+            private double[] selectionX = {100, 180, 260, 340, 420};
+            private double[] selectionTargetX = {100, 180, 260, 340, 420};
+            private boolean[] selectionGreen = {false, false, false, false, false};
+            private int selectionCursor = 0;
+            
+            private double[] quickVals = {12, 18, 5, 15, 10};
+            private double[] quickX = {100, 180, 260, 340, 420};
+            private double[] quickTargetX = {100, 180, 260, 340, 420};
+            private boolean[] quickGreen = {false, false, false, false, false};
+            private int quickCursor = 0;
+            private boolean pivotMode = false;
+            
+            private double[] mergeSub1 = {5, 15};
+            private double[] mergeSub2 = {3, 10};
+            private double[] mergeOut = {0, 0, 0, 0};
+            private double[] mergeSub1X = {120, 200};
+            private double[] mergeSub2X = {340, 420};
+            
+            private double[] mergeSub1Y = {50, 50};
+            private double[] mergeSub2Y = {50, 50};
+            
+            private boolean[] mergeSub1Merged = {false, false};
+            private boolean[] mergeSub2Merged = {false, false};
+            private boolean[] mergeOutGreen = {false, false, false, false};
+            
+            @Override
+            public void handle(long now) {
+                gc.setFill(Color.web("#0f172a"));
+                gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+                gc.setStroke(Color.web("#1e293b"));
+                gc.setLineWidth(1.0);
+                gc.strokeRect(0, 0, canvas.getWidth(), canvas.getHeight());
+                
+                int step = currentStepHolder[0];
+                if (algorithm.equalsIgnoreCase("Selection Sort")) {
+                    updateAndDrawSelection(gc, step);
+                } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
+                    updateAndDrawQuick(gc, step);
+                } else {
+                    updateAndDrawMerge(gc, step);
+                }
+            }
+
+            private void drawKeyCap(GraphicsContext gc, double x, double y, String label, boolean isPressed) {
+                double w = label.length() * 10 + 20;
+                double h = 24;
+                
+                // Key shadow
+                gc.setFill(Color.web("#020617"));
+                gc.fillRoundRect(x + 1, y + 2, w, h, 4, 4);
+                
+                // Key base
+                gc.setFill(isPressed ? Color.web("#10b981") : Color.web("#1e293b"));
+                gc.setStroke(isPressed ? Color.web("#34d399") : Color.web("#475569"));
+                gc.setLineWidth(1.5);
+                gc.fillRoundRect(x, y, w, h, 4, 4);
+                gc.strokeRoundRect(x, y, w, h, 4, 4);
+                
+                // Key text
+                gc.setFill(isPressed ? Color.BLACK : Color.web("#f8fafc"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10));
+                gc.fillText(label, x + (w - (label.length() * 6)) / 2.0 - 2, y + 15);
+            }
+
+            private void drawLegend(GraphicsContext gc, String algo, double x, double y) {
+                gc.setFill(Color.web("#1e293b", 0.6));
+                gc.setStroke(Color.web("#334155", 0.8));
+                gc.setLineWidth(1.0);
+                gc.fillRoundRect(x, y, 680, 75, 6, 6);
+                gc.strokeRoundRect(x, y, 680, 75, 6, 6);
+                
+                // Draw Legend Title
+                gc.setFill(Color.web("#94a3b8"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 9));
+                gc.fillText("VISUAL UI INDICATORS LEGEND", x + 12, y + 15);
+                
+                // Draw Legend elements
+                double startX = x + 12;
+                double startY = y + 24;
+                
+                // 1. Target Arrow
+                gc.setStroke(Color.web("#f59e0b"));
+                gc.setLineWidth(2.0);
+                gc.strokeLine(startX, startY + 15, startX, startY + 5);
+                gc.strokeLine(startX - 3, startY + 8, startX, startY + 5);
+                gc.strokeLine(startX + 3, startY + 8, startX, startY + 5);
+                gc.setFill(Color.web("#f8fafc"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
+                gc.fillText("Target Slot Arrow (Destination index for shifts)", startX + 12, startY + 13);
+                
+                // 2. Active range
+                double activeX = x + 250;
+                gc.setStroke(Color.web("#64748b"));
+                gc.setLineDashes(new double[]{4.0, 3.0});
+                gc.strokeRoundRect(activeX, startY + 3, 30, 12, 2, 2);
+                gc.setLineDashes(null);
+                gc.fillText("Dashed Frame (Active Subarray Segment)", activeX + 36, startY + 13);
+                
+                // 3. Algorithm specific legends
+                double specificX = x + 480;
+                if (algo.equalsIgnoreCase("Quick Sort")) {
+                    gc.setFill(Color.web("#ea580c"));
+                    gc.fillRoundRect(specificX, startY + 2, 32, 13, 2, 2);
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 7));
+                    gc.fillText("PIVOT", specificX + 5, startY + 11);
+                    gc.setFill(Color.web("#f8fafc"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
+                    gc.fillText("Pivot Block Badge", specificX + 38, startY + 13);
+                } else if (algo.equalsIgnoreCase("Merge Sort")) {
+                    gc.setFill(Color.web("#06b6d4"));
+                    gc.fillRoundRect(specificX, startY + 2, 32, 13, 2, 2);
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 7));
+                    gc.fillText("HEAD", specificX + 6, startY + 11);
+                    gc.setFill(Color.web("#f8fafc"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
+                    gc.fillText("Active Subarray Heads", specificX + 38, startY + 13);
+                } else {
+                    gc.setFill(Color.web("#10b981"));
+                    gc.fillRoundRect(specificX, startY + 2, 32, 13, 2, 2);
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 7));
+                    gc.fillText("SORT", specificX + 6, startY + 11);
+                    gc.setFill(Color.web("#f8fafc"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
+                    gc.fillText("Green block (Sorted & Finalized)", specificX + 38, startY + 13);
+                }
+            }
+            
+            private void updateAndDrawSelection(GraphicsContext gc, int step) {
+                // Initial values: selectionVals = {15, 8, 22, 5, 12};
+                // index mapping: 0:15, 1:8, 2:22, 3:5, 4:12
+                if (step == 0) {
+                    selectionTargetX[0] = 100; selectionTargetX[1] = 180; selectionTargetX[2] = 260; selectionTargetX[3] = 340; selectionTargetX[4] = 420;
+                    selectionCursor = 2; // scanning
+                    selectionGreen[0] = false; selectionGreen[1] = false; selectionGreen[2] = false; selectionGreen[3] = false; selectionGreen[4] = false;
+                } else if (step == 1) {
+                    selectionTargetX[0] = 100; selectionTargetX[1] = 180; selectionTargetX[2] = 260; selectionTargetX[3] = 340; selectionTargetX[4] = 420;
+                    selectionCursor = 3; // select 5
+                    selectionGreen[0] = false; selectionGreen[1] = false; selectionGreen[2] = false; selectionGreen[3] = false; selectionGreen[4] = false;
+                } else if (step == 2) {
+                    // 5 shifted to index 0. Order: 5, 15, 8, 22, 12
+                    selectionTargetX[3] = 100; selectionTargetX[0] = 180; selectionTargetX[1] = 260; selectionTargetX[2] = 340; selectionTargetX[4] = 420;
+                    selectionCursor = 2; // scanning
+                    selectionGreen[3] = true; selectionGreen[0] = false; selectionGreen[1] = false; selectionGreen[2] = false; selectionGreen[4] = false;
+                } else if (step == 3) {
+                    selectionTargetX[3] = 100; selectionTargetX[0] = 180; selectionTargetX[1] = 260; selectionTargetX[2] = 340; selectionTargetX[4] = 420;
+                    selectionCursor = 1; // select 8
+                    selectionGreen[3] = true; selectionGreen[0] = false; selectionGreen[1] = false; selectionGreen[2] = false; selectionGreen[4] = false;
+                } else if (step == 4) {
+                    // 8 shifted to index 1. Order: 5, 8, 15, 22, 12
+                    selectionTargetX[3] = 100; selectionTargetX[1] = 180; selectionTargetX[0] = 260; selectionTargetX[2] = 340; selectionTargetX[4] = 420;
+                    selectionCursor = 4; // scanning
+                    selectionGreen[3] = true; selectionGreen[1] = true; selectionGreen[0] = false; selectionGreen[2] = false; selectionGreen[4] = false;
+                } else if (step == 5) {
+                    selectionTargetX[3] = 100; selectionTargetX[1] = 180; selectionTargetX[0] = 260; selectionTargetX[2] = 340; selectionTargetX[4] = 420;
+                    selectionCursor = 4; // select 12
+                    selectionGreen[3] = true; selectionGreen[1] = true; selectionGreen[0] = false; selectionGreen[2] = false; selectionGreen[4] = false;
+                } else if (step == 6) {
+                    // 12 shifted to index 2. Order: 5, 8, 12, 15, 22
+                    selectionTargetX[3] = 100; selectionTargetX[1] = 180; selectionTargetX[4] = 260; selectionTargetX[0] = 340; selectionTargetX[2] = 420;
+                    selectionCursor = 0; // scanning
+                    selectionGreen[3] = true; selectionGreen[1] = true; selectionGreen[4] = true; selectionGreen[0] = false; selectionGreen[2] = false;
+                } else if (step == 7) {
+                    selectionTargetX[3] = 100; selectionTargetX[1] = 180; selectionTargetX[4] = 260; selectionTargetX[0] = 340; selectionTargetX[2] = 420;
+                    selectionCursor = 0; // select 15
+                    selectionGreen[3] = true; selectionGreen[1] = true; selectionGreen[4] = true; selectionGreen[0] = false; selectionGreen[2] = false;
+                } else if (step == 8) {
+                    // 15 shifted to index 3. Order: 5, 8, 12, 15, 22
+                    selectionTargetX[3] = 100; selectionTargetX[1] = 180; selectionTargetX[4] = 260; selectionTargetX[0] = 340; selectionTargetX[2] = 420;
+                    selectionCursor = 2; // scanning
+                    selectionGreen[3] = true; selectionGreen[1] = true; selectionGreen[4] = true; selectionGreen[0] = true; selectionGreen[2] = false;
+                } else if (step == 9) {
+                    selectionTargetX[3] = 100; selectionTargetX[1] = 180; selectionTargetX[4] = 260; selectionTargetX[0] = 340; selectionTargetX[2] = 420;
+                    selectionCursor = 2; // select 22
+                    selectionGreen[3] = true; selectionGreen[1] = true; selectionGreen[4] = true; selectionGreen[0] = true; selectionGreen[2] = false;
+                } else {
+                    // All sorted and green
+                    selectionTargetX[3] = 100; selectionTargetX[1] = 180; selectionTargetX[4] = 260; selectionTargetX[0] = 340; selectionTargetX[2] = 420;
+                    selectionCursor = -1; // hide cursor
+                    selectionGreen[3] = true; selectionGreen[1] = true; selectionGreen[4] = true; selectionGreen[0] = true; selectionGreen[2] = true;
+                }
+                
+                for (int i = 0; i < 5; i++) {
+                    selectionX[i] += (selectionTargetX[i] - selectionX[i]) * 0.15;
+                }
+                
+                // Draw title of the current phase
+                gc.setFill(Color.web("#10b981"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                if (step == 0) {
+                    gc.fillText("PHASE 1: SCAN FOR THE MINIMUM ELEMENT IN UNSORTED RANGE [0, 4]", 15, 25);
+                } else if (step == 1) {
+                    gc.fillText("PHASE 2: NAVIGATE TO MINIMUM AND PRESS ENTER TO SHIFT TO TARGET SLOT 0", 15, 25);
+                } else if (step == 2) {
+                    gc.fillText("PHASE 3: SCAN UNSORTED RANGE [1, 4] TO LOCATE NEXT MINIMUM", 15, 25);
+                } else if (step == 3) {
+                    gc.fillText("PHASE 4: SHIFT NEXT MINIMUM TO NEXT TARGET SLOT 1", 15, 25);
+                } else if (step == 4) {
+                    gc.fillText("PHASE 5: SCAN UNSORTED RANGE [2, 4] TO LOCATE NEXT MINIMUM", 15, 25);
+                } else if (step == 5) {
+                    gc.fillText("PHASE 6: SHIFT NEXT MINIMUM TO NEXT TARGET SLOT 2", 15, 25);
+                } else if (step == 6) {
+                    gc.fillText("PHASE 7: SCAN UNSORTED RANGE [3, 4] TO LOCATE NEXT MINIMUM", 15, 25);
+                } else if (step == 7) {
+                    gc.fillText("PHASE 8: SHIFT NEXT MINIMUM TO NEXT TARGET SLOT 3", 15, 25);
+                } else if (step == 8) {
+                    gc.fillText("PHASE 9: SCAN UNSORTED RANGE [4, 4] TO LOCATE NEXT MINIMUM", 15, 25);
+                } else if (step == 9) {
+                    gc.fillText("PHASE 10: SHIFT FINAL ELEMENT TO NEXT TARGET SLOT 4", 15, 25);
+                } else {
+                    gc.fillText("PHASE 11: SELECTED MINIMUMS ARE FINALIZED AND LOCKED", 15, 25);
+                }
+
+                // Draw active subarray dashed frame for selection sort
+                double startX = 100;
+                double boxWidth = 80;
+                double boxHeight = 65;
+                double startY = 60;
+                
+                int targetIndex = step / 2;
+                if (step < 10) {
+                    double rx1 = startX + targetIndex * boxWidth + 2;
+                    double rx2 = startX + 5 * boxWidth - 2;
+                    gc.setStroke(Color.web("#475569", 0.6));
+                    gc.setLineWidth(1.5);
+                    gc.setLineDashes(new double[]{4.0, 3.0});
+                    gc.strokeRoundRect(rx1, startY - 10, rx2 - rx1, boxHeight + 20, 6, 6);
+                    gc.setLineDashes(null);
+                    
+                    gc.setFill(Color.web("#94a3b8", 0.7));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.fillText("UNSORTED RANGE", rx1 + 6, startY - 14);
+
+                    // Draw Target Slot pointer
+                    double arrowX = startX + targetIndex * boxWidth + boxWidth / 2.0;
+                    double arrowYHead = startY - 4;
+                    double arrowYTail = startY - 18;
+                    gc.setStroke(Color.web("#10b981"));
+                    gc.setLineWidth(2.0);
+                    gc.strokeLine(arrowX, arrowYTail, arrowX, arrowYHead);
+                    gc.strokeLine(arrowX - 3, arrowYHead - 3, arrowX, arrowYHead);
+                    gc.strokeLine(arrowX + 3, arrowYHead - 3, arrowX, arrowYHead);
+                    
+                    gc.setFill(Color.web("#10b981"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.fillText("TARGET", arrowX - 16, arrowYTail - 4);
+                }
+                
+                for (int i = 0; i < 5; i++) {
+                    double x = selectionX[i];
+                    double y = 60;
+                    double w = 65;
+                    double h = 65;
+                    
+                    boolean isSorted = selectionGreen[i];
+                    Color col = isSorted ? Color.web("#10b981") : Color.web("#334155");
+                    
+                    gc.setFill(col);
+                    gc.fillRoundRect(x, y, w, h, 6, 6);
+                    gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
+                    gc.strokeRoundRect(x, y, w, h, 6, 6);
+                    
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+                    gc.fillText(String.valueOf((int)selectionVals[i]), x + 22, y + 38);
+                }
+                
+                if (selectionCursor != -1) {
+                    double cursorX = selectionX[selectionCursor];
+                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setLineWidth(2.5);
+                    gc.strokeRoundRect(cursorX - 2, 60 - 2, 69, 69, 6, 6);
+                }
+                
+                // Draw keyboard simulation (y = 145)
+                boolean dPressed = (step < 10 && step % 2 == 0);
+                boolean enterPressed = (step < 10 && step % 2 == 1);
+                
+                drawKeyCap(gc, 200, 145, "A", false);
+                drawKeyCap(gc, 250, 145, "D", dPressed);
+                drawKeyCap(gc, 320, 145, "ENTER", enterPressed);
+
+                gc.setFill(Color.web("#94a3b8"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                if (step == 0) {
+                    gc.fillText("Virtual Player pressing [D] to scan unsorted blocks...", 170, 195);
+                } else if (step == 1) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("Found Minimum 5! Pressing [ENTER] to shift to target index 0...", 130, 195);
+                } else if (step == 2) {
+                    gc.fillText("Scanning unsorted section to find next minimum...", 160, 195);
+                } else if (step == 3) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("Found Minimum 8! Pressing [ENTER] to shift to target index 1...", 130, 195);
+                } else if (step == 4) {
+                    gc.fillText("Scanning unsorted section to find next minimum...", 160, 195);
+                } else if (step == 5) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("Found Minimum 12! Pressing [ENTER] to shift to target index 2...", 130, 195);
+                } else if (step == 6) {
+                    gc.fillText("Scanning unsorted section to find next minimum...", 160, 195);
+                } else if (step == 7) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("Found Minimum 15! Pressing [ENTER] to shift to target index 3...", 130, 195);
+                } else if (step == 8) {
+                    gc.fillText("Only one block left in unsorted range...", 210, 195);
+                } else if (step == 9) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("Pressing [ENTER] to finalize last element 22...", 190, 195);
+                } else {
+                    gc.setFill(Color.web("#10b981"));
+                    gc.fillText("Sorting complete! All blocks are finalized and locked in green.", 150, 195);
+                }
+                
+                drawLegend(gc, "Selection Sort", 10, 235);
+            }
+            
+            private void updateAndDrawQuick(GraphicsContext gc, int step) {
+                // Initial values: quickVals = {12, 18, 5, 15, 10}
+                // index mapping: 0:12, 1:18, 2:5, 3:15, 4:10
+                if (step == 0) {
+                    quickTargetX[0] = 100; quickTargetX[1] = 180; quickTargetX[2] = 260; quickTargetX[3] = 340; quickTargetX[4] = 420;
+                    quickCursor = 0; // scanning 12
+                    quickGreen[0] = false; quickGreen[1] = false; quickGreen[2] = false; quickGreen[3] = false; quickGreen[4] = false;
+                    pivotMode = false;
+                } else if (step == 1) {
+                    quickTargetX[0] = 100; quickTargetX[1] = 180; quickTargetX[2] = 260; quickTargetX[3] = 340; quickTargetX[4] = 420;
+                    quickCursor = 1; // scanning 18
+                    quickGreen[0] = false; quickGreen[1] = false; quickGreen[2] = false; quickGreen[3] = false; quickGreen[4] = false;
+                    pivotMode = false;
+                } else if (step == 2) {
+                    quickTargetX[0] = 100; quickTargetX[1] = 180; quickTargetX[2] = 260; quickTargetX[3] = 340; quickTargetX[4] = 420;
+                    quickCursor = 2; // select 5
+                    quickGreen[0] = false; quickGreen[1] = false; quickGreen[2] = false; quickGreen[3] = false; quickGreen[4] = false;
+                    pivotMode = false;
+                } else if (step == 3) {
+                    // 5 shifted to index 0. Order: 5, 12, 18, 15, 10
+                    quickTargetX[2] = 100; quickTargetX[0] = 180; quickTargetX[1] = 260; quickTargetX[3] = 340; quickTargetX[4] = 420;
+                    quickCursor = 3; // scanning 15
+                    quickGreen[0] = false; quickGreen[1] = false; quickGreen[2] = false; quickGreen[3] = false; quickGreen[4] = false;
+                    pivotMode = false;
+                } else if (step == 4) {
+                    quickTargetX[2] = 100; quickTargetX[0] = 180; quickTargetX[1] = 260; quickTargetX[3] = 340; quickTargetX[4] = 420;
+                    quickCursor = 4; // select Pivot 10
+                    quickGreen[0] = false; quickGreen[1] = false; quickGreen[2] = false; quickGreen[3] = false; quickGreen[4] = false;
+                    pivotMode = true;
+                } else if (step == 5) {
+                    // Pivot 10 shifted to index 1 (turns green).
+                    // Sub-partition [2, 4] (values 12, 18, 15) with Pivot 15.
+                    // Scan 12 (select 12) at index 2 (element 0).
+                    quickTargetX[2] = 100; quickTargetX[4] = 180; quickTargetX[0] = 260; quickTargetX[1] = 340; quickTargetX[3] = 420;
+                    quickCursor = 0; // select 12
+                    quickGreen[0] = false; quickGreen[1] = false; quickGreen[2] = false; quickGreen[3] = false; quickGreen[4] = true;
+                    pivotMode = false;
+                } else if (step == 6) {
+                    // 12 shifted to index 2 (no actual movement visual).
+                    // Scan 18 (element 1) at index 3.
+                    quickTargetX[2] = 100; quickTargetX[4] = 180; quickTargetX[0] = 260; quickTargetX[1] = 340; quickTargetX[3] = 420;
+                    quickCursor = 1; // scanning 18
+                    quickGreen[0] = false; quickGreen[1] = false; quickGreen[2] = false; quickGreen[3] = false; quickGreen[4] = true;
+                    pivotMode = false;
+                } else if (step == 7) {
+                    // Select Pivot 15 (element 3) at index 4.
+                    quickTargetX[2] = 100; quickTargetX[4] = 180; quickTargetX[0] = 260; quickTargetX[1] = 340; quickTargetX[3] = 420;
+                    quickCursor = 3; // select Pivot 15
+                    quickGreen[0] = false; quickGreen[1] = false; quickGreen[2] = false; quickGreen[3] = false; quickGreen[4] = true;
+                    pivotMode = true;
+                } else {
+                    // Pivot 15 shifted to index 3 (turns green).
+                    // Remaining partitions [2, 2] and [4, 4] are size 1 and finalized (green).
+                    // Final order: 5, 10, 12, 15, 18
+                    // Elements: 5 (idx 2), 10 (idx 4), 12 (idx 0), 15 (idx 3), 18 (idx 1)
+                    quickTargetX[2] = 100; quickTargetX[4] = 180; quickTargetX[0] = 260; quickTargetX[3] = 340; quickTargetX[1] = 420;
+                    quickCursor = -1; // hide cursor
+                    quickGreen[2] = true; quickGreen[4] = true; quickGreen[0] = true; quickGreen[3] = true; quickGreen[1] = true;
+                    pivotMode = false;
+                }
+                
+                for (int i = 0; i < 5; i++) {
+                    quickX[i] += (quickTargetX[i] - quickX[i]) * 0.15;
+                }
+                
+                // Draw phase title
+                gc.setFill(Color.web("#f59e0b"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                if (step == 0) {
+                    gc.fillText("PHASE 1: COMPARE SCANNING ELEMENTS WITH PIVOT (10)", 15, 25);
+                } else if (step == 1) {
+                    gc.fillText("PHASE 2: COMPARE SCANNING ELEMENTS WITH PIVOT (10)", 15, 25);
+                } else if (step == 2) {
+                    gc.fillText("PHASE 3: ELEMENT 5 <= PIVOT! PRESS ENTER TO SHIFT TO TARGET SLOT 0", 15, 25);
+                } else if (step == 3) {
+                    gc.fillText("PHASE 4: COMPARE SCANNING ELEMENTS WITH PIVOT (10)", 15, 25);
+                } else if (step == 4) {
+                    gc.fillText("PHASE 5: SHIFT PIVOT TO FINAL PARTITION TARGET SLOT 1", 15, 25);
+                } else if (step == 5) {
+                    gc.fillText("PHASE 6: SUB-PARTITION RANGE [2, 4] WITH PIVOT (15) | SCAN ELEMENT 12 <= 15", 15, 25);
+                } else if (step == 6) {
+                    gc.fillText("PHASE 7: COMPARE SCANNING ELEMENTS WITH PIVOT (15)", 15, 25);
+                } else if (step == 7) {
+                    gc.fillText("PHASE 8: SHIFT PIVOT TO FINAL PARTITION TARGET SLOT 3", 15, 25);
+                } else {
+                    gc.fillText("PHASE 9: SORTING COMPLETE! ALL BLOCK PARTITIONS FINALIZED", 15, 25);
+                }
+
+                // Draw active subarray dashed frame
+                double startX = 100;
+                double boxWidth = 80;
+                double boxHeight = 65;
+                double startY = 60;
+                
+                int pLeft = (step < 5) ? 0 : 2;
+                int pRight = 4;
+                int targetIndex = -1;
+                if (step < 5) {
+                    targetIndex = (step < 3) ? 0 : 1;
+                } else if (step < 8) {
+                    targetIndex = (step < 7) ? 2 : 3;
+                }
+                
+                if (step < 8) {
+                    // Draw dashed range
+                    double rx1 = startX + pLeft * boxWidth + 2;
+                    double rx2 = startX + (pRight + 1) * boxWidth - 2;
+                    gc.setStroke(Color.web("#475569", 0.6));
+                    gc.setLineWidth(1.5);
+                    gc.setLineDashes(new double[]{4.0, 3.0});
+                    gc.strokeRoundRect(rx1, startY - 10, rx2 - rx1, boxHeight + 20, 6, 6);
+                    gc.setLineDashes(null);
+                    
+                    gc.setFill(Color.web("#94a3b8", 0.7));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.fillText(step < 5 ? "ACTIVE PARTITION RANGE [0, 4]" : "SUB-PARTITION RANGE [2, 4]", rx1 + 8, startY - 14);
+
+                    // Draw Target Slot Arrow
+                    double arrowX = startX + targetIndex * boxWidth + boxWidth / 2.0;
+                    double arrowYHead = startY - 4;
+                    double arrowYTail = startY - 18;
+                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setLineWidth(2.0);
+                    gc.strokeLine(arrowX, arrowYTail, arrowX, arrowYHead);
+                    gc.strokeLine(arrowX - 3, arrowYHead - 3, arrowX, arrowYHead);
+                    gc.strokeLine(arrowX + 3, arrowYHead - 3, arrowX, arrowYHead);
+                    
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.fillText("TARGET SLOT", arrowX - 22, arrowYTail - 4);
+                }
+                
+                for (int i = 0; i < 5; i++) {
+                    double x = quickX[i];
+                    double y = 60;
+                    double w = 65;
+                    double h = 65;
+                    
+                    boolean isSorted = quickGreen[i];
+                    boolean isPivot = (step < 5 && i == 4) || (step >= 5 && step < 8 && i == 3);
+                    
+                    Color col = isSorted ? Color.web("#10b981") : (isPivot ? Color.web("#f59e0b") : Color.web("#334155"));
+                    
+                    gc.setFill(col);
+                    gc.fillRoundRect(x, y, w, h, 6, 6);
+                    gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
+                    gc.strokeRoundRect(x, y, w, h, 6, 6);
+                    
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+                    gc.fillText(String.valueOf((int)quickVals[i]), x + 22, y + 38);
+                    
+                    if (isPivot && !isSorted) {
+                        double badgeW = 38;
+                        double badgeX = x + (w - badgeW) / 2.0;
+                        gc.setFill(Color.web("#ea580c"));
+                        gc.fillRoundRect(badgeX, y - 14, badgeW, 11, 2, 2);
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 7));
+                        gc.fillText("PIVOT", badgeX + 6, y - 6);
+                    }
+                }
+                
+                if (quickCursor != -1) {
+                    double cursorX = quickX[quickCursor];
+                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setLineWidth(2.5);
+                    gc.strokeRoundRect(cursorX - 2, 60 - 2, 69, 69, 6, 6);
+                    
+                    // Draw comparison operator between cursor and pivot
+                    int pivotTutIdx = (step < 5) ? 4 : ((step < 8) ? 3 : -1);
+                    if (pivotTutIdx != -1 && quickCursor != pivotTutIdx && !quickGreen[quickCursor]) {
+                        double cxMid = quickX[quickCursor] + 32.5;
+                        double pxMid = quickX[pivotTutIdx] + 32.5;
+                        double opMidX = (cxMid + pxMid) / 2.0;
+                        double opMidY = 40;
+                        
+                        int valC = (int) quickVals[quickCursor];
+                        int valP = (int) quickVals[pivotTutIdx];
+                        String op = valC < valP ? "<" : (valC > valP ? ">" : "=");
+                        
+                        gc.setFill(Color.web("#0b0f19"));
+                        gc.setStroke(Color.web("#f59e0b"));
+                        gc.setLineWidth(1.5);
+                        gc.fillOval(opMidX - 12, opMidY - 12, 24, 24);
+                        gc.strokeOval(opMidX - 12, opMidY - 12, 24, 24);
+                        
+                        gc.setFill(Color.web("#f59e0b"));
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+                        gc.fillText(op, opMidX - 4.5, opMidY + 5);
+                    }
+                }
+                
+                // Draw keyboard simulation (y = 145)
+                boolean dPressed = (step == 0 || step == 1 || step == 3 || step == 6);
+                boolean enterPressed = (step == 2 || step == 4 || step == 5 || step == 7);
+                
+                drawKeyCap(gc, 200, 145, "A", false);
+                drawKeyCap(gc, 250, 145, "D", dPressed);
+                drawKeyCap(gc, 320, 145, "ENTER", enterPressed);
+
+                gc.setFill(Color.web("#94a3b8"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                if (step == 0) {
+                    gc.fillText("Scanning elements: 12 > 10. No shift. Pressing [D]...", 170, 195);
+                } else if (step == 1) {
+                    gc.fillText("Scanning elements: 18 > 10. No shift. Pressing [D]...", 170, 195);
+                } else if (step == 2) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("5 <= Pivot (10)! Pressing [ENTER] to shift to target index 0...", 130, 195);
+                } else if (step == 3) {
+                    gc.fillText("Scanning elements: 15 > 10. No shift. Pressing [D]...", 170, 195);
+                } else if (step == 4) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("Partition scan complete. Pressing [ENTER] to shift Pivot to index 1...", 120, 195);
+                } else if (step == 5) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("New partition [2, 4] with Pivot 15. 12 <= 15! Pressing [ENTER]...", 125, 195);
+                } else if (step == 6) {
+                    gc.fillText("Scanning elements: 18 > 15. No shift. Pressing [D]...", 170, 195);
+                } else if (step == 7) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("Partition scan complete. Pressing [ENTER] to shift Pivot to index 3...", 120, 195);
+                } else {
+                    gc.setFill(Color.web("#10b981"));
+                    gc.fillText("Sorting complete! All partitions sorted and finalized.", 170, 195);
+                }
+                
+                drawLegend(gc, "Quick Sort", 10, 235);
+            }
+            
+            private void updateAndDrawMerge(GraphicsContext gc, int step) {
+                if (step == 0) {
+                    mergeSub2Merged[0] = false; mergeSub1Merged[0] = false; mergeSub2Merged[1] = false; mergeSub1Merged[1] = false;
+                    mergeOutGreen[0] = false; mergeOutGreen[1] = false; mergeOutGreen[2] = false; mergeOutGreen[3] = false;
+                } else if (step == 1) {
+                    mergeSub2Merged[0] = true; mergeSub1Merged[0] = false; mergeSub2Merged[1] = false; mergeSub1Merged[1] = false;
+                    mergeOutGreen[0] = false; mergeOutGreen[1] = false; mergeOutGreen[2] = false; mergeOutGreen[3] = false;
+                } else if (step == 2) {
+                    mergeSub2Merged[0] = true; mergeSub1Merged[0] = true; mergeSub2Merged[1] = false; mergeSub1Merged[1] = false;
+                    mergeOutGreen[0] = false; mergeOutGreen[1] = false; mergeOutGreen[2] = false; mergeOutGreen[3] = false;
+                } else if (step == 3) {
+                    mergeSub2Merged[0] = true; mergeSub1Merged[0] = true; mergeSub2Merged[1] = true; mergeSub1Merged[1] = false;
+                    mergeOutGreen[0] = false; mergeOutGreen[1] = false; mergeOutGreen[2] = false; mergeOutGreen[3] = false;
+                } else {
+                    mergeSub2Merged[0] = true; mergeSub1Merged[0] = true; mergeSub2Merged[1] = true; mergeSub1Merged[1] = true;
+                    mergeOutGreen[0] = true; mergeOutGreen[1] = true; mergeOutGreen[2] = true; mergeOutGreen[3] = true;
+                }
+                
+                for (int i = 0; i < 2; i++) {
+                    mergeSub1X[i] += ( (mergeSub1Merged[i] ? (180 + (i==0?80:240)) : (120 + i*80)) - mergeSub1X[i] ) * 0.15;
+                    mergeSub1Y[i] += ( (mergeSub1Merged[i] ? 130 : 50) - mergeSub1Y[i] ) * 0.15;
+                    
+                    mergeSub2X[i] += ( (mergeSub2Merged[i] ? (180 + (i==0?0:160)) : (340 + i*80)) - mergeSub2X[i] ) * 0.15;
+                    mergeSub2Y[i] += ( (mergeSub2Merged[i] ? 130 : 50) - mergeSub2Y[i] ) * 0.15;
+                }
+                
+                // Draw phase title
+                gc.setFill(Color.web("#3b82f6"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                if (step == 0) {
+                    gc.fillText("PHASE 1: COMPARE HEADS A (5) & B (3) -> CHOOSE SMALLER (3)", 15, 25);
+                } else if (step == 1) {
+                    gc.fillText("PHASE 2: COMPARE HEADS A (5) & B (10) -> CHOOSE SMALLER (5)", 15, 25);
+                } else if (step == 2) {
+                    gc.fillText("PHASE 3: COMPARE HEADS A (15) & B (10) -> CHOOSE SMALLER (10)", 15, 25);
+                } else if (step == 3) {
+                    gc.fillText("PHASE 4: SUBARRAY B EMPTY -> CHOOSE REMAINING HEAD A (15)", 15, 25);
+                } else {
+                    gc.fillText("PHASE 5: SUBARRAYS SUCCESSFULLY MERGED AND LOCKED (GREEN)", 15, 25);
+                }
+
+                // Draw active subarray dashed frames
+                gc.setStroke(Color.web("#475569", 0.6));
+                gc.setLineWidth(1.2);
+                gc.setLineDashes(new double[]{4.0, 3.0});
+                
+                // Subarray A
+                gc.strokeRoundRect(110, 42, 150, 60, 4, 4);
+                // Subarray B
+                gc.strokeRoundRect(330, 42, 150, 60, 4, 4);
+                // Output Area
+                gc.strokeRoundRect(170, 122, 250, 60, 4, 4);
+                
+                gc.setLineDashes(null);
+                
+                gc.setFill(Color.web("#94a3b8", 0.7));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                gc.fillText("SUBARRAY A (SORTED)", 115, 36);
+                gc.fillText("SUBARRAY B (SORTED)", 335, 36);
+                gc.fillText("MERGED OUTPUT SLOT", 175, 116);
+
+                // Draw Target Slot Arrow
+                int targetIndex = step;
+                if (step == 4) targetIndex = -1;
+                
+                if (targetIndex != -1) {
+                    double arrowX = 180 + targetIndex * 80 + 25;
+                    double arrowYHead = 120;
+                    double arrowYTail = 106;
+                    gc.setStroke(Color.web("#06b6d4"));
+                    gc.setLineWidth(2.0);
+                    gc.strokeLine(arrowX, arrowYTail, arrowX, arrowYHead);
+                    gc.strokeLine(arrowX - 3, arrowYHead - 3, arrowX, arrowYHead);
+                    gc.strokeLine(arrowX + 3, arrowYHead - 3, arrowX, arrowYHead);
+                }
+
+                // Draw elements of Subarray A
+                for (int i = 0; i < 2; i++) {
+                    double x = mergeSub1X[i];
+                    double y = mergeSub1Y[i];
+                    boolean merged = mergeSub1Merged[i];
+                    Color col = (merged && mergeOutGreen[i==0?1:3]) ? Color.web("#10b981") : Color.web("#334155");
+                    
+                    gc.setFill(col);
+                    gc.fillRoundRect(x, y, 50, 45, 4, 4);
+                    gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
+                    gc.strokeRoundRect(x, y, 50, 45, 4, 4);
+                    
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+                    gc.fillText(String.valueOf((int)mergeSub1[i]), x + 16, y + 26);
+
+                    // HEAD A Badge
+                    if (i == 0 && !mergeSub1Merged[0] && step < 2) {
+                        gc.setFill(Color.web("#06b6d4"));
+                        gc.fillRoundRect(x + 5, y - 12, 40, 10, 2, 2);
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 6));
+                        gc.fillText("HEAD A", x + 9, y - 5);
+                    } else if (i == 1 && !mergeSub1Merged[1] && mergeSub1Merged[0] && step >= 2 && step < 4) {
+                        gc.setFill(Color.web("#06b6d4"));
+                        gc.fillRoundRect(x + 5, y - 12, 40, 10, 2, 2);
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 6));
+                        gc.fillText("HEAD A", x + 9, y - 5);
+                    }
+                }
+                
+                // Draw elements of Subarray B
+                for (int i = 0; i < 2; i++) {
+                    double x = mergeSub2X[i];
+                    double y = mergeSub2Y[i];
+                    boolean merged = mergeSub2Merged[i];
+                    Color col = (merged && mergeOutGreen[i==0?0:2]) ? Color.web("#10b981") : Color.web("#334155");
+                    
+                    gc.setFill(col);
+                    gc.fillRoundRect(x, y, 50, 45, 4, 4);
+                    gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
+                    gc.strokeRoundRect(x, y, 50, 45, 4, 4);
+                    
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+                    gc.fillText(String.valueOf((int)mergeSub2[i]), x + 16, y + 26);
+
+                    // HEAD B Badge
+                    if (i == 0 && !mergeSub2Merged[0] && step < 1) {
+                        gc.setFill(Color.web("#06b6d4"));
+                        gc.fillRoundRect(x + 5, y - 12, 40, 10, 2, 2);
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 6));
+                        gc.fillText("HEAD B", x + 9, y - 5);
+                    } else if (i == 1 && !mergeSub2Merged[1] && mergeSub2Merged[0] && step >= 1 && step < 3) {
+                        gc.setFill(Color.web("#06b6d4"));
+                        gc.fillRoundRect(x + 5, y - 12, 40, 10, 2, 2);
+                        gc.setFill(Color.WHITE);
+                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 6));
+                        gc.fillText("HEAD B", x + 9, y - 5);
+                    }
+                }
+                
+                
+                double cursorX = 0;
+                double cursorY = 50;
+                boolean cursorVisible = true;
+                
+                if (step == 0) {
+                    cursorX = mergeSub2X[0];
+                } else if (step == 1) {
+                    cursorX = mergeSub1X[0];
+                } else if (step == 2) {
+                    cursorX = mergeSub2X[1];
+                } else if (step == 3) {
+                    cursorX = mergeSub1X[1];
+                } else {
+                    cursorVisible = false;
+                }
+                
+                if (cursorVisible) {
+                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setLineWidth(2.0);
+                    gc.strokeRoundRect(cursorX - 1, cursorY - 1, 52, 47, 4, 4);
+                }
+                
+                // Draw keyboard simulation (y = 200)
+                boolean enterPressed = (step < 4);
+                
+                drawKeyCap(gc, 200, 200, "A", false);
+                drawKeyCap(gc, 250, 200, "D", false);
+                drawKeyCap(gc, 320, 200, "ENTER", enterPressed);
+
+                gc.setFill(Color.web("#94a3b8"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                if (step == 0) {
+                    gc.fillText("Comparing subarray heads: 5 vs 3. Select smaller head (3)...", 130, 190);
+                } else if (step == 1) {
+                    gc.fillText("Comparing subarray heads: 5 vs 10. Select smaller head (5)...", 130, 190);
+                } else if (step == 2) {
+                    gc.fillText("Comparing subarray heads: 15 vs 10. Select smaller head (10)...", 125, 190);
+                } else if (step == 3) {
+                    gc.fillText("Subarray B is empty. Select remaining head (15)...", 150, 190);
+                } else {
+                    gc.setFill(Color.web("#10b981"));
+                    gc.fillText("Sub-arrays successfully merged! Output finalizes green.", 160, 190);
+                }
+                
+                drawLegend(gc, "Merge Sort", 10, 235);
+            }
+        };
+        
+        startBtn.setOnAction(event -> {
+            tutorialTimer.stop();
+            root.getChildren().remove(overlay);
+            onStartGame.run();
+        });
+
+        backBtn.setOnAction(event -> {
+            tutorialTimer.stop();
+            root.getChildren().remove(overlay);
+        });
+
+        overlay.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                tutorialTimer.stop();
+                root.getChildren().remove(overlay);
+                onStartGame.run();
+            } else if (event.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                tutorialTimer.stop();
+                root.getChildren().remove(overlay);
+            } else if (event.getCode() == javafx.scene.input.KeyCode.RIGHT || event.getCode() == javafx.scene.input.KeyCode.D) {
+                if (currentStepHolder[0] < maxSteps - 1) {
+                    currentStepHolder[0]++;
+                    stepLabel.setText(String.format("Step %d of %d", currentStepHolder[0] + 1, maxSteps));
+                    SoundManager.playClick();
+                }
+            } else if (event.getCode() == javafx.scene.input.KeyCode.LEFT || event.getCode() == javafx.scene.input.KeyCode.A) {
+                if (currentStepHolder[0] > 0) {
+                    currentStepHolder[0]--;
+                    stepLabel.setText(String.format("Step %d of %d", currentStepHolder[0] + 1, maxSteps));
+                    SoundManager.playClick();
+                }
+            }
+        });
+        
+        tutorialTimer.start();
+    }
+    
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
