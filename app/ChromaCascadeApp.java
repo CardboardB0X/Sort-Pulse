@@ -62,72 +62,169 @@ public class ChromaCascadeApp extends Application {
 
     // --- Retro Sound Synthesizer Engine ---
     public static class SoundManager {
-        private static void playTone(int hz, int msecs, double volume) {
-            new Thread(() -> {
-                try {
-                    float sampleRate = 44100f;
-                    AudioFormat af = new AudioFormat(sampleRate, 16, 2, true, false);
-                    SourceDataLine sdl = AudioSystem.getSourceDataLine(af);
-                    sdl.open(af, 8192);
-                    sdl.start();
-                    int numSamples = (int) (sampleRate * (msecs / 1000.0));
-                    byte[] buf = new byte[numSamples * 4];
-                    for (int i = 0; i < numSamples; i++) {
-                        double angle = i / (sampleRate / hz) * 2.0 * Math.PI;
-                        
-                        double envelope = 1.0;
-                        int fadeSamples = numSamples / 10;
-                        if (fadeSamples > 0) {
-                            if (i < fadeSamples) {
-                                envelope = (double) i / fadeSamples;
-                            } else if (i > numSamples - fadeSamples) {
-                                envelope = (double) (numSamples - i) / fadeSamples;
-                            }
+        private static class ActiveTone {
+            final double hz;
+            final double phaseStep;
+            double phase = 0.0;
+            final double volume;
+            int remainingSamples;
+            final int totalSamples;
+            final int fadeSamples;
+
+            ActiveTone(double hz, int msecs, double volume) {
+                this.hz = hz;
+                this.phaseStep = 2.0 * Math.PI * hz / 48000.0;
+                this.volume = volume;
+                this.totalSamples = (int) (48000.0 * (msecs / 1000.0));
+                this.remainingSamples = this.totalSamples;
+                this.fadeSamples = this.totalSamples / 10;
+            }
+        }
+
+        private static final java.util.List<ActiveTone> activeTones = new java.util.ArrayList<>();
+        private static Thread mixerThread;
+        private static boolean mixerRunning = false;
+        private static SourceDataLine mixerLine;
+
+        static {
+            startMixer();
+        }
+
+        private static synchronized void startMixer() {
+            if (mixerRunning) return;
+            mixerRunning = true;
+            mixerThread = new Thread(() -> {
+                float sampleRate = 48000f;
+                AudioFormat af = new AudioFormat(sampleRate, 16, 2, true, false);
+                int bufferSizeFrames = 512; // ~10.6ms latency
+                byte[] buf = new byte[bufferSizeFrames * 4];
+
+                while (mixerRunning) {
+                    if (mixerLine == null || !mixerLine.isOpen()) {
+                        try {
+                            mixerLine = AudioSystem.getSourceDataLine(af);
+                            mixerLine.open(af, 16384);
+                            mixerLine.start();
+                        } catch (Exception e) {
+                            try { Thread.sleep(500); } catch (InterruptedException ie) { break; }
+                            continue;
                         }
-                        
-                        short sampleVal = (short) (Math.sin(angle) * 32767.0 * volume * envelope);
-                        buf[i * 4] = (byte) (sampleVal & 0xFF);
-                        buf[i * 4 + 1] = (byte) ((sampleVal >> 8) & 0xFF);
-                        buf[i * 4 + 2] = (byte) (sampleVal & 0xFF);
-                        buf[i * 4 + 3] = (byte) ((sampleVal >> 8) & 0xFF);
                     }
-                    sdl.write(buf, 0, buf.length);
-                    sdl.drain();
-                    sdl.close();
-                } catch (Exception e) {
-                    // Fail silently
+
+                    try {
+                        // Mix active tones
+                        java.util.List<ActiveTone> localTones;
+                        synchronized (activeTones) {
+                            localTones = new java.util.ArrayList<>(activeTones);
+                        }
+
+                        for (int f = 0; f < bufferSizeFrames; f++) {
+                            double leftSum = 0.0;
+                            double rightSum = 0.0;
+
+                            for (ActiveTone tone : localTones) {
+                                if (tone.remainingSamples > 0) {
+                                    double envelope = 1.0;
+                                    int currentSampleIdx = tone.totalSamples - tone.remainingSamples;
+                                    if (tone.fadeSamples > 0) {
+                                        if (currentSampleIdx < tone.fadeSamples) {
+                                            envelope = (double) currentSampleIdx / tone.fadeSamples;
+                                        } else if (tone.remainingSamples < tone.fadeSamples) {
+                                            envelope = (double) tone.remainingSamples / tone.fadeSamples;
+                                        }
+                                    }
+                                    double sampleVal = Math.sin(tone.phase) * tone.volume * envelope;
+                                    tone.phase += tone.phaseStep;
+                                    if (tone.phase > 2.0 * Math.PI) {
+                                        tone.phase -= 2.0 * Math.PI;
+                                    }
+                                    leftSum += sampleVal;
+                                    rightSum += sampleVal;
+                                    tone.remainingSamples--;
+                                }
+                            }
+
+                            // Clamp to prevent digital clipping
+                            if (leftSum > 1.0) leftSum = 1.0;
+                            else if (leftSum < -1.0) leftSum = -1.0;
+                            if (rightSum > 1.0) rightSum = 1.0;
+                            else if (rightSum < -1.0) rightSum = -1.0;
+
+                            short leftShort = (short) (leftSum * 32767.0);
+                            short rightShort = (short) (rightSum * 32767.0);
+
+                            int byteIdx = f * 4;
+                            buf[byteIdx] = (byte) (leftShort & 0xFF);
+                            buf[byteIdx + 1] = (byte) ((leftShort >> 8) & 0xFF);
+                            buf[byteIdx + 2] = (byte) (rightShort & 0xFF);
+                            buf[byteIdx + 3] = (byte) ((rightShort >> 8) & 0xFF);
+                        }
+
+                        // Remove finished tones
+                        synchronized (activeTones) {
+                            activeTones.removeIf(t -> t.remainingSamples <= 0);
+                        }
+
+                        mixerLine.write(buf, 0, buf.length);
+                    } catch (Exception ex) {
+                        try {
+                            if (mixerLine != null) {
+                                try { mixerLine.close(); } catch (Exception e) {}
+                                mixerLine = null;
+                            }
+                            Thread.sleep(100);
+                        } catch (InterruptedException ie) {
+                            break;
+                        }
+                    }
                 }
-            }).start();
+
+                if (mixerLine != null) {
+                    try {
+                        mixerLine.stop();
+                        mixerLine.close();
+                    } catch (Exception e) {}
+                }
+            });
+            mixerThread.setDaemon(true);
+            mixerThread.setName("ChromaCascade-AudioMixer");
+            mixerThread.start();
+        }
+
+        private static void playTone(int hz, int msecs, double volume) {
+            synchronized (activeTones) {
+                activeTones.add(new ActiveTone(hz, msecs, volume));
+            }
         }
 
         public static void playSuccess() {
             new Thread(() -> {
                 try {
-                    playTone(523, 70, 0.4); // C5
+                    playTone(523, 70, 0.15); // C5
                     Thread.sleep(70);
-                    playTone(659, 70, 0.4); // E5
+                    playTone(659, 70, 0.15); // E5
                     Thread.sleep(70);
-                    playTone(784, 100, 0.4); // G5
+                    playTone(784, 100, 0.15); // G5
                 } catch (InterruptedException e) {}
             }).start();
         }
 
         public static void playFailure() {
             new Thread(() -> {
-                playTone(150, 250, 0.6); // Low buzz tone
+                playTone(150, 250, 0.20); // Low buzz tone
             }).start();
         }
 
         public static void playWaveClear() {
             new Thread(() -> {
                 try {
-                    playTone(523, 100, 0.4); // C5
+                    playTone(523, 100, 0.15); // C5
                     Thread.sleep(100);
-                    playTone(659, 100, 0.4); // E5
+                    playTone(659, 100, 0.15); // E5
                     Thread.sleep(100);
-                    playTone(784, 100, 0.4); // G5
+                    playTone(784, 100, 0.15); // G5
                     Thread.sleep(100);
-                    playTone(1046, 200, 0.5); // C6
+                    playTone(1046, 200, 0.20); // C6
                 } catch (InterruptedException e) {}
             }).start();
         }
@@ -135,19 +232,19 @@ public class ChromaCascadeApp extends Application {
         public static void playGameOver() {
             new Thread(() -> {
                 try {
-                    playTone(392, 150, 0.5); // G4
+                    playTone(392, 150, 0.18); // G4
                     Thread.sleep(150);
-                    playTone(349, 150, 0.5); // F4
+                    playTone(349, 150, 0.18); // F4
                     Thread.sleep(150);
-                    playTone(311, 150, 0.5); // Eb4
+                    playTone(311, 150, 0.18); // Eb4
                     Thread.sleep(150);
-                    playTone(261, 300, 0.6); // C4
+                    playTone(261, 300, 0.22); // C4
                 } catch (InterruptedException e) {}
             }).start();
         }
 
         public static void playClick() {
-            playTone(1200, 10, 0.15); // Tiny high pitch click
+            playTone(1200, 10, 0.08); // Tiny high pitch click
         }
 
         private static Thread musicThread;
@@ -164,28 +261,40 @@ public class ChromaCascadeApp extends Application {
                     {164, 207, 246, 207}  // E
                 };
                 int chordIdx = 0;
-                while (musicRunning) {
-                    if (!model.getGameState().equalsIgnoreCase("PLAYING") || model.isGameOver()) {
-                        try { Thread.sleep(200); } catch (InterruptedException e) {}
-                        continue;
-                    }
-                    int[] chord = progressions[chordIdx];
-                    for (int note : chord) {
-                        if (!musicRunning || !model.getGameState().equalsIgnoreCase("PLAYING") || model.isGameOver()) break;
-                        double timeRatio = model.isPracticeMode() ? 1.0 : (double) model.getCountdownTimer() / 20.0;
-                        if (timeRatio > 1.0) timeRatio = 1.0;
-                        double sleepMs = 200.0 + 250.0 * timeRatio; 
-                        playTone(note, 80, 0.03); 
-                        try {
-                            Thread.sleep((long) sleepMs);
-                        } catch (InterruptedException e) {
-                            break;
+
+                try {
+                    while (musicRunning) {
+                        if (!model.getGameState().equalsIgnoreCase("PLAYING") || model.isGameOver()) {
+                            try { Thread.sleep(100); } catch (InterruptedException e) { break; }
+                            continue;
                         }
+
+                        int[] chord = progressions[chordIdx];
+                        for (int note : chord) {
+                            if (!musicRunning || !model.getGameState().equalsIgnoreCase("PLAYING") || model.isGameOver()) break;
+                            
+                            double timeRatio = model.isPracticeMode() ? 1.0 : (double) model.getCountdownTimer() / 20.0;
+                            if (timeRatio > 1.0) timeRatio = 1.0;
+                            
+                            int noteMsecs = 80;
+                            int totalMsecs = (int) (200.0 + 250.0 * timeRatio);
+
+                            playTone(note, noteMsecs, 0.02);
+
+                            try {
+                                Thread.sleep(totalMsecs);
+                            } catch (InterruptedException e) {
+                                break;
+                            }
+                        }
+                        chordIdx = (chordIdx + 1) % progressions.length;
                     }
-                    chordIdx = (chordIdx + 1) % progressions.length;
+                } catch (Exception e) {
+                    // Fail silently
                 }
             });
             musicThread.setDaemon(true);
+            musicThread.setName("ChromaCascade-MusicSequencer");
             musicThread.start();
         }
 
@@ -1660,6 +1769,7 @@ public class ChromaCascadeApp extends Application {
         public void triggerGameOver() {
             model.setGameOver(true);
             SoundManager.stopMusic();
+            SoundManager.playGameOver();
             if (!model.isPracticeMode() && model.getScore() > 0 && LeaderboardManager.qualifiesForTopFive(model.getTargetAlgorithm(), model.getScore())) {
                 model.setEnteringInitials(true);
                 model.setPlayerInitials("");
