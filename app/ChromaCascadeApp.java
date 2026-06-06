@@ -22,6 +22,9 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import javafx.scene.SnapshotParameters;
+import javafx.scene.image.WritableImage;
+
 
 import java.util.Random;
 import java.util.ArrayList;
@@ -107,10 +110,7 @@ public class ChromaCascadeApp extends Application {
     public static final java.util.Map<String, Theme> THEMES = new java.util.LinkedHashMap<>();
     static {
         THEMES.put("Classic Neon", new Theme("Classic Neon", "#0b0f19", "#0f172a", "#1e293b", "#10b981", "#334155", "#f59e0b", "#f8fafc", "#64748b"));
-        THEMES.put("Cyberpunk", new Theme("Cyberpunk", "#0f051d", "#1e0b36", "#3b0764", "#ec4899", "#06b6d4", "#eab308", "#f8fafc", "#a855f7"));
         THEMES.put("GameBoy Retro", new Theme("GameBoy Retro", "#0f380f", "#306230", "#0f380f", "#9bbc0f", "#8bac0f", "#9bbc0f", "#e0f8d0", "#8bac0f"));
-        THEMES.put("Vaporwave", new Theme("Vaporwave", "#180030", "#2c004d", "#ff71ce", "#01cdfe", "#b967ff", "#fffb96", "#f8fafc", "#ff71ce"));
-        THEMES.put("Matrix Terminal", new Theme("Matrix Terminal", "#000000", "#050c05", "#003b00", "#00ff00", "#008f00", "#33ff33", "#33ff33", "#005f00"));
     }
 
     private static void styleMenuButton(Button btn, Theme theme, String hoverHex) {
@@ -1272,6 +1272,11 @@ public class ChromaCascadeApp extends Application {
         private java.util.List<Particle> particles = new java.util.ArrayList<>();
         private java.util.List<FloatingText> floatingTexts = new java.util.ArrayList<>();
 
+        private Canvas offscreenCanvas;
+        private GraphicsContext offscreenGc;
+        private Canvas pixelateCanvas;
+        private GraphicsContext pixelateGc;
+
         public ChromaCascadeView(ChromaCascadeModel model) {
             this.model = model;
             this.canvas = new Canvas(800, 400);
@@ -1328,6 +1333,21 @@ public class ChromaCascadeApp extends Application {
 
         public void draw() {
             Theme theme = model.getTheme();
+            boolean isGameBoy = theme.name.equalsIgnoreCase("GameBoy Retro");
+
+            GraphicsContext originalGc = this.gc;
+            Canvas originalCanvas = this.canvas;
+
+            if (isGameBoy) {
+                if (offscreenCanvas == null) {
+                    offscreenCanvas = new Canvas(800, 400);
+                    offscreenGc = offscreenCanvas.getGraphicsContext2D();
+                    pixelateCanvas = new Canvas(200, 100);
+                    pixelateGc = pixelateCanvas.getGraphicsContext2D();
+                }
+                this.canvas = offscreenCanvas;
+                this.gc = offscreenGc;
+            }
 
             // Draw background
             gc.setFill(theme.bg);
@@ -1824,6 +1844,30 @@ public class ChromaCascadeApp extends Application {
                 } else {
                     fit.remove();
                 }
+            }
+
+            if (isGameBoy) {
+                // Restore original references
+                this.canvas = originalCanvas;
+                this.gc = originalGc;
+
+                // 1. Snapshot the high-res offscreen canvas
+                SnapshotParameters params = new SnapshotParameters();
+                params.setFill(Color.TRANSPARENT);
+                WritableImage highResImg = offscreenCanvas.snapshot(params, null);
+
+                // 2. Draw it scaled down onto the pixelate canvas (200x100)
+                pixelateGc.setFill(theme.bg);
+                pixelateGc.fillRect(0, 0, 200, 100);
+                pixelateGc.setImageSmoothing(true);
+                pixelateGc.drawImage(highResImg, 0, 0, 200, 100);
+
+                // 3. Snapshot the low-res pixelate canvas
+                WritableImage lowResImg = pixelateCanvas.snapshot(params, null);
+
+                // 4. Draw the low-res image scaled up onto the main canvas with smoothing disabled (pixelated)
+                gc.setImageSmoothing(false);
+                gc.drawImage(lowResImg, 0, 0, 800, 400);
             }
         }
 
@@ -2421,7 +2465,7 @@ public class ChromaCascadeApp extends Application {
         Label themeLabel = new Label("UI COLOR THEME:");
         themeLabel.setStyle("-fx-text-fill: #94a3b8; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px;");
         ComboBox<String> themeCb = new ComboBox<>();
-        themeCb.getItems().addAll("Classic Neon", "Cyberpunk", "GameBoy Retro", "Vaporwave", "Matrix Terminal");
+        themeCb.getItems().addAll("Classic Neon", "GameBoy Retro");
         themeCb.setValue("Classic Neon");
         themeBox.getChildren().addAll(themeLabel, themeCb);
 
