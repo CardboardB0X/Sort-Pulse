@@ -65,16 +65,29 @@ public class ChromaCascadeApp extends Application {
         private static void playTone(int hz, int msecs, double volume) {
             new Thread(() -> {
                 try {
-                    float sampleRate = 8000f;
-                    AudioFormat af = new AudioFormat(sampleRate, 8, 1, true, false);
+                    float sampleRate = 44100f;
+                    AudioFormat af = new AudioFormat(sampleRate, 16, 1, true, true);
                     SourceDataLine sdl = AudioSystem.getSourceDataLine(af);
                     sdl.open(af);
                     sdl.start();
                     int numSamples = (int) (sampleRate * (msecs / 1000.0));
-                    byte[] buf = new byte[numSamples];
+                    byte[] buf = new byte[numSamples * 2];
                     for (int i = 0; i < numSamples; i++) {
                         double angle = i / (sampleRate / hz) * 2.0 * Math.PI;
-                        buf[i] = (byte) (Math.sin(angle) * 127.0 * volume);
+                        
+                        double envelope = 1.0;
+                        int fadeSamples = numSamples / 10;
+                        if (fadeSamples > 0) {
+                            if (i < fadeSamples) {
+                                envelope = (double) i / fadeSamples;
+                            } else if (i > numSamples - fadeSamples) {
+                                envelope = (double) (numSamples - i) / fadeSamples;
+                            }
+                        }
+                        
+                        short sampleVal = (short) (Math.sin(angle) * 32767.0 * volume * envelope);
+                        buf[i * 2] = (byte) ((sampleVal >> 8) & 0xFF);
+                        buf[i * 2 + 1] = (byte) (sampleVal & 0xFF);
                     }
                     sdl.write(buf, 0, buf.length);
                     sdl.drain();
