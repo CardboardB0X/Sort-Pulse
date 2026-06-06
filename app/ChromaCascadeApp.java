@@ -60,6 +60,111 @@ public class ChromaCascadeApp extends Application {
         public int mid = -1;
     }
 
+    // --- Theme Config System ---
+    public static class Theme {
+        public final String name;
+        public final Color bg;
+        public final Color panelBg;
+        public final Color border;
+        public final Color sorted;
+        public final Color unsorted;
+        public final Color accent;
+        public final Color text;
+        public final Color textMuted;
+
+        // CSS Hex string representations
+        public final String bgHex;
+        public final String panelBgHex;
+        public final String borderHex;
+        public final String sortedHex;
+        public final String unsortedHex;
+        public final String accentHex;
+        public final String textHex;
+        public final String textMutedHex;
+
+        public Theme(String name, String bg, String panelBg, String border, String sorted, String unsorted, String accent, String text, String textMuted) {
+            this.name = name;
+            this.bg = Color.web(bg);
+            this.panelBg = Color.web(panelBg);
+            this.border = Color.web(border);
+            this.sorted = Color.web(sorted);
+            this.unsorted = Color.web(unsorted);
+            this.accent = Color.web(accent);
+            this.text = Color.web(text);
+            this.textMuted = Color.web(textMuted);
+
+            this.bgHex = bg;
+            this.panelBgHex = panelBg;
+            this.borderHex = border;
+            this.sortedHex = sorted;
+            this.unsortedHex = unsorted;
+            this.accentHex = accent;
+            this.textHex = text;
+            this.textMutedHex = textMuted;
+        }
+    }
+
+    public static final java.util.Map<String, Theme> THEMES = new java.util.LinkedHashMap<>();
+    static {
+        THEMES.put("Classic Neon", new Theme("Classic Neon", "#0b0f19", "#0f172a", "#1e293b", "#10b981", "#334155", "#f59e0b", "#f8fafc", "#64748b"));
+        THEMES.put("Cyberpunk", new Theme("Cyberpunk", "#0f051d", "#1e0b36", "#3b0764", "#ec4899", "#06b6d4", "#eab308", "#f8fafc", "#a855f7"));
+        THEMES.put("GameBoy Retro", new Theme("GameBoy Retro", "#0f380f", "#306230", "#0f380f", "#9bbc0f", "#8bac0f", "#9bbc0f", "#e0f8d0", "#8bac0f"));
+        THEMES.put("Vaporwave", new Theme("Vaporwave", "#180030", "#2c004d", "#ff71ce", "#01cdfe", "#b967ff", "#fffb96", "#f8fafc", "#ff71ce"));
+        THEMES.put("Matrix Terminal", new Theme("Matrix Terminal", "#000000", "#050c05", "#003b00", "#00ff00", "#008f00", "#33ff33", "#33ff33", "#005f00"));
+    }
+
+    private static void styleMenuButton(Button btn, Theme theme, String hoverHex) {
+        btn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-min-width: 280; -fx-cursor: hand;");
+        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: " + hoverHex + "; -fx-text-fill: " + theme.bgHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: " + hoverHex + "; -fx-border-width: 1px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, " + hoverHex + "4D, 8, 0, 0, 0);"));
+        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-min-width: 280; -fx-cursor: hand;"));
+    }
+
+    private static void applyTheme(String themeName, StackPane rootContainer, VBox menuLayout, VBox leaderboardLayout, VBox gameLayout, 
+            Label menuTitle, Label menuSubtitle, Label themeLabel, ComboBox<String> themeCb, CheckBox practiceModeCb, 
+            Label lbTitle, Button backBtn, ListView<String> logView, Label timerVal, Label scoreVal, Label modeLabel, Text controlGuide, 
+            Button selectionBtn, Button quickBtn, Button mergeBtn, Button bubbleBtn, Button insertionBtn, Button leaderboardBtn) {
+        
+        Theme theme = THEMES.getOrDefault(themeName, THEMES.get("Classic Neon"));
+        
+        // Root backgrounds
+        rootContainer.setStyle("-fx-background-color: " + theme.bgHex + ";");
+        menuLayout.setStyle("-fx-background-color: " + theme.bgHex + ";");
+        leaderboardLayout.setStyle("-fx-background-color: " + theme.bgHex + ";");
+        gameLayout.setStyle("-fx-background-color: " + theme.bgHex + ";");
+        
+        // Titles and Text headers
+        menuTitle.setStyle("-fx-font-family: 'Segoe UI', 'Outfit', sans-serif; -fx-font-size: 44px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + "; -fx-effect: dropshadow(three-pass-box, " + theme.accentHex + "66, 12, 0, 0, 0);");
+        menuSubtitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: " + theme.textMutedHex + "; -fx-padding: -15px 0 10px 0;");
+        themeLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: " + theme.textMutedHex + ";");
+        practiceModeCb.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: " + theme.textHex + ";");
+        lbTitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + ";");
+        
+        // Dropdown selection style
+        themeCb.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-background-radius: 4px; -fx-border-radius: 4px;");
+        
+        // Back Button
+        backBtn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-cursor: hand;");
+        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: " + theme.sortedHex + "; -fx-text-fill: " + theme.bgHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: " + theme.sortedHex + "; -fx-border-width: 1px; -fx-cursor: hand;"));
+        backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-cursor: hand;"));
+
+        // HUD panel components
+        timerVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + ";");
+        scoreVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + theme.sortedHex + ";");
+        modeLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: " + theme.textHex + ";");
+        controlGuide.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-fill: " + theme.textMutedHex + ";");
+
+        // Log View list
+        logView.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-control-inner-background: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Consolas', monospace; -fx-font-size: 11px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px;");
+
+        // Menu buttons (styled according to algorithm accent colors)
+        styleMenuButton(selectionBtn, theme, "#10b981"); // Emerald Green
+        styleMenuButton(quickBtn, theme, "#f59e0b");     // Amber Gold
+        styleMenuButton(mergeBtn, theme, "#3b82f6");     // Dodge Blue
+        styleMenuButton(bubbleBtn, theme, "#ec4899");    // Hot Pink
+        styleMenuButton(insertionBtn, theme, "#8b5cf6"); // Purple
+        styleMenuButton(leaderboardBtn, theme, "#a855f7");// Violet
+    }
+
     // --- Retro Sound Synthesizer Engine ---
     public static class SoundManager {
         private static class ActiveTone {
@@ -67,15 +172,17 @@ public class ChromaCascadeApp extends Application {
             final double phaseStep;
             double phase = 0.0;
             final double volume;
+            final double pan; // -1.0 (left) to 1.0 (right)
             int remainingSamples;
             final int totalSamples;
             final int fadeSamples;
 
-            ActiveTone(double hz, int msecs, double volume) {
+            ActiveTone(double hz, int msecs, double volume, double pan) {
                 this.hz = hz;
-                this.phaseStep = 2.0 * Math.PI * hz / 48000.0;
+                this.phaseStep = 2.0 * Math.PI * hz / 44100.0;
                 this.volume = volume;
-                this.totalSamples = (int) (48000.0 * (msecs / 1000.0));
+                this.pan = pan;
+                this.totalSamples = (int) (44100.0 * (msecs / 1000.0));
                 this.remainingSamples = this.totalSamples;
                 this.fadeSamples = this.totalSamples / 10;
             }
@@ -94,9 +201,9 @@ public class ChromaCascadeApp extends Application {
             if (mixerRunning) return;
             mixerRunning = true;
             mixerThread = new Thread(() -> {
-                float sampleRate = 48000f;
+                float sampleRate = 44100f;
                 AudioFormat af = new AudioFormat(sampleRate, 16, 2, true, false);
-                int bufferSizeFrames = 512; // ~10.6ms latency
+                int bufferSizeFrames = 1024; // ~23.2ms latency (prevents buffer underruns)
                 byte[] buf = new byte[bufferSizeFrames * 4];
 
                 while (mixerRunning) {
@@ -138,8 +245,13 @@ public class ChromaCascadeApp extends Application {
                                     if (tone.phase > 2.0 * Math.PI) {
                                         tone.phase -= 2.0 * Math.PI;
                                     }
-                                    leftSum += sampleVal;
-                                    rightSum += sampleVal;
+                                    
+                                    // Linear panning
+                                    double leftFactor = Math.max(0.0, Math.min(1.0, 1.0 - tone.pan));
+                                    double rightFactor = Math.max(0.0, Math.min(1.0, 1.0 + tone.pan));
+
+                                    leftSum += sampleVal * leftFactor;
+                                    rightSum += sampleVal * rightFactor;
                                     tone.remainingSamples--;
                                 }
                             }
@@ -192,26 +304,38 @@ public class ChromaCascadeApp extends Application {
         }
 
         private static void playTone(int hz, int msecs, double volume) {
+            playTone(hz, msecs, volume, 0.0);
+        }
+
+        private static void playTone(int hz, int msecs, double volume, double pan) {
             synchronized (activeTones) {
-                activeTones.add(new ActiveTone(hz, msecs, volume));
+                activeTones.add(new ActiveTone(hz, msecs, volume, pan));
             }
         }
 
         public static void playSuccess() {
+            playSuccess(0.0);
+        }
+
+        public static void playSuccess(double pan) {
             new Thread(() -> {
                 try {
-                    playTone(523, 70, 0.15); // C5
+                    playTone(523, 70, 0.15, pan); // C5
                     Thread.sleep(70);
-                    playTone(659, 70, 0.15); // E5
+                    playTone(659, 70, 0.15, pan); // E5
                     Thread.sleep(70);
-                    playTone(784, 100, 0.15); // G5
+                    playTone(784, 100, 0.15, pan); // G5
                 } catch (InterruptedException e) {}
             }).start();
         }
 
         public static void playFailure() {
+            playFailure(0.0);
+        }
+
+        public static void playFailure(double pan) {
             new Thread(() -> {
-                playTone(150, 250, 0.20); // Low buzz tone
+                playTone(150, 250, 0.20, pan); // Low buzz tone
             }).start();
         }
 
@@ -244,7 +368,11 @@ public class ChromaCascadeApp extends Application {
         }
 
         public static void playClick() {
-            playTone(1200, 10, 0.08); // Tiny high pitch click
+            playClick(0.0);
+        }
+
+        public static void playClick(double pan) {
+            playTone(1200, 10, 0.08, pan); // Tiny high pitch click
         }
 
         private static Thread musicThread;
@@ -470,6 +598,20 @@ public class ChromaCascadeApp extends Application {
         // Visual freeze indicator forCompleted banner pop-up
         private int freezeFrames = 0;
 
+        private String activeThemeName = "Classic Neon";
+
+        public String getActiveThemeName() {
+            return activeThemeName;
+        }
+
+        public void setActiveThemeName(String activeThemeName) {
+            this.activeThemeName = activeThemeName;
+        }
+
+        public Theme getTheme() {
+            return THEMES.getOrDefault(activeThemeName, THEMES.get("Classic Neon"));
+        }
+
         private ObservableList<String> memoryRegisters = FXCollections.observableArrayList();
         private ObservableList<String> systemStatusLog = FXCollections.observableArrayList();
 
@@ -608,6 +750,10 @@ public class ChromaCascadeApp extends Application {
                 quickSort(array, 0, array.length - 1);
             } else if (algorithmName.equalsIgnoreCase("Merge Sort")) {
                 mergeSort(array, 0, array.length - 1);
+            } else if (algorithmName.equalsIgnoreCase("Bubble Sort")) {
+                bubbleSort(array);
+            } else if (algorithmName.equalsIgnoreCase("Insertion Sort")) {
+                insertionSort(array);
             } else {
                 selectionSort(array);
             }
@@ -628,6 +774,42 @@ public class ChromaCascadeApp extends Application {
                 array[minIdx] = temp;
                 if (array[i] != null) array[i].setPositionIndex(i);
                 if (array[minIdx] != null) array[minIdx].setPositionIndex(minIdx);
+            }
+        }
+
+        // Bubble Sort (Ascending)
+        public static void bubbleSort(BlockSegment[] array) {
+            int n = array.length;
+            boolean swapped;
+            for (int i = 0; i < n - 1; i++) {
+                swapped = false;
+                for (int j = 0; j < n - i - 1; j++) {
+                    if (compare(array[j], array[j + 1]) > 0) {
+                        BlockSegment temp = array[j];
+                        array[j] = array[j + 1];
+                        array[j + 1] = temp;
+                        if (array[j] != null) array[j].setPositionIndex(j);
+                        if (array[j + 1] != null) array[j + 1].setPositionIndex(j + 1);
+                        swapped = true;
+                    }
+                }
+                if (!swapped) break;
+            }
+        }
+
+        // Insertion Sort (Ascending)
+        public static void insertionSort(BlockSegment[] array) {
+            int n = array.length;
+            for (int i = 1; i < n; i++) {
+                BlockSegment key = array[i];
+                int j = i - 1;
+                while (j >= 0 && compare(array[j], key) > 0) {
+                    array[j + 1] = array[j];
+                    if (array[j + 1] != null) array[j + 1].setPositionIndex(j + 1);
+                    j = j - 1;
+                }
+                array[j + 1] = key;
+                if (array[j + 1] != null) array[j + 1].setPositionIndex(j + 1);
             }
         }
 
@@ -803,6 +985,72 @@ public class ChromaCascadeApp extends Application {
                 }
                 array[to] = target;
             }
+        }
+
+        public static java.util.List<SortingStep> generateBubbleSortSteps(BlockSegment[] initial) {
+            BlockSegment[] array = initial.clone();
+            int[] sortedVals = getSortedValues(initial);
+            java.util.List<SortingStep> steps = new java.util.ArrayList<>();
+            int n = array.length;
+            boolean swapped;
+            for (int i = 0; i < n - 1; i++) {
+                swapped = false;
+                for (int j = 0; j < n - i - 1; j++) {
+                    if (compare(array[j], array[j + 1]) > 0) {
+                        SortingStep step = new SortingStep();
+                        step.correctIndex = j;
+                        step.targetIndex = j + 1;
+                        step.startIndex = j;
+                        step.nextCursor = j;
+                        step.activeLeft = j;
+                        step.activeRight = j + 1;
+                        step.description = String.format("Swap adjacent elements (value %d and %d) at indices %d and %d.",
+                                                         array[j].getRawValue(), array[j + 1].getRawValue(), j, j + 1);
+
+                        shiftElement(array, j, j + 1);
+                        swapped = true;
+
+                        step.greenBlocks = new boolean[n];
+                        for (int k = 0; k < n; k++) {
+                            step.greenBlocks[k] = (array[k].getRawValue() == sortedVals[k]);
+                        }
+                        steps.add(step);
+                    }
+                }
+                if (!swapped) break;
+            }
+            return steps;
+        }
+
+        public static java.util.List<SortingStep> generateInsertionSortSteps(BlockSegment[] initial) {
+            BlockSegment[] array = initial.clone();
+            int[] sortedVals = getSortedValues(initial);
+            java.util.List<SortingStep> steps = new java.util.ArrayList<>();
+            int n = array.length;
+            for (int i = 1; i < n; i++) {
+                int j = i;
+                while (j > 0 && compare(array[j], array[j - 1]) < 0) {
+                    SortingStep step = new SortingStep();
+                    step.correctIndex = j;
+                    step.targetIndex = j - 1;
+                    step.startIndex = j;
+                    step.nextCursor = j - 1;
+                    step.activeLeft = 0;
+                    step.activeRight = i;
+                    step.description = String.format("Insert element (value %d) leftwards to index %d.",
+                                                     array[j].getRawValue(), j - 1);
+
+                    shiftElement(array, j, j - 1);
+                    j--;
+
+                    step.greenBlocks = new boolean[n];
+                    for (int k = 0; k < n; k++) {
+                        step.greenBlocks[k] = (array[k].getRawValue() == sortedVals[k]);
+                    }
+                    steps.add(step);
+                }
+            }
+            return steps;
         }
 
         public static java.util.List<SortingStep> generateSelectionSortSteps(BlockSegment[] initial) {
@@ -1022,6 +1270,7 @@ public class ChromaCascadeApp extends Application {
         private java.util.Map<BlockSegment, Double> visualXMap = new java.util.HashMap<>();
         private java.util.Map<BlockSegment, Double> visualYMap = new java.util.HashMap<>();
         private java.util.List<Particle> particles = new java.util.ArrayList<>();
+        private java.util.List<FloatingText> floatingTexts = new java.util.ArrayList<>();
 
         public ChromaCascadeView(ChromaCascadeModel model) {
             this.model = model;
@@ -1032,6 +1281,12 @@ public class ChromaCascadeApp extends Application {
         public void clearVisuals() {
             visualXMap.clear();
             visualYMap.clear();
+            floatingTexts.clear();
+            particles.clear();
+        }
+
+        public void spawnFloatingText(double x, double y, String text, Color color) {
+            floatingTexts.add(new FloatingText(x, y, text, color));
         }
 
         public void spawnParticles(double x, double y, Color color, int count) {
@@ -1072,12 +1327,14 @@ public class ChromaCascadeApp extends Application {
         }
 
         public void draw() {
+            Theme theme = model.getTheme();
+
             // Draw background
-            gc.setFill(Color.web("#0b0f19")); // sleeker darker color
+            gc.setFill(theme.bg);
             gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
             // Draw Canvas structural outline
-            gc.setStroke(Color.web("#1e293b"));
+            gc.setStroke(theme.border);
             gc.setLineWidth(2.0);
             gc.strokeRoundRect(10, 10, canvas.getWidth() - 20, canvas.getHeight() - 20, 8, 8);
 
@@ -1087,7 +1344,7 @@ public class ChromaCascadeApp extends Application {
                 BlockSegment[] set = row.getCurrentSet();
                 int size = set.length;
 
-                double totalWidth = 700.0; // wider blocks layout
+                double totalWidth = 700.0;
                 double boxHeight = 85.0;
                 double boxWidth = totalWidth / size;
                 double startX = (canvas.getWidth() - totalWidth) / 2.0;
@@ -1118,12 +1375,7 @@ public class ChromaCascadeApp extends Application {
 
                 // Mode accent color helper
                 String targetAlgo = model.getTargetAlgorithm();
-                Color modeAccent = Color.web("#f59e0b"); // default gold
-                if (targetAlgo.equalsIgnoreCase("Selection Sort")) {
-                    modeAccent = Color.web("#10b981");
-                } else if (targetAlgo.equalsIgnoreCase("Merge Sort")) {
-                    modeAccent = Color.web("#06b6d4");
-                }
+                Color modeAccent = theme.accent;
 
                 // 1. Draw dashed active sub-array boundary
                 if (activeLeft != -1 && activeRight != -1 && model.getFreezeFrames() <= 0) {
@@ -1135,13 +1387,13 @@ public class ChromaCascadeApp extends Application {
                             double ay1 = startY - 60 - 10;
                             double ay2 = startY - 60 + boxHeight + 10;
 
-                            gc.setStroke(Color.web("#06b6d4", 0.6));
+                            gc.setStroke(theme.accent.deriveColor(0, 1, 1, 0.6));
                             gc.setLineWidth(1.2);
                             gc.setLineDashes(new double[]{4.0, 3.0});
                             gc.strokeRoundRect(ax1, ay1, ax2 - ax1, ay2 - ay1, 6, 6);
                             gc.setLineDashes(null);
 
-                            gc.setFill(Color.web("#06b6d4", 0.7));
+                            gc.setFill(theme.accent.deriveColor(0, 1, 1, 0.7));
                             gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
                             gc.fillText("SUBARRAY A (SORTED)", ax1 + 6, ay1 - 4);
                         }
@@ -1153,13 +1405,13 @@ public class ChromaCascadeApp extends Application {
                             double by1 = startY - 60 - 10;
                             double by2 = startY - 60 + boxHeight + 10;
 
-                            gc.setStroke(Color.web("#06b6d4", 0.6));
+                            gc.setStroke(theme.accent.deriveColor(0, 1, 1, 0.6));
                             gc.setLineWidth(1.2);
                             gc.setLineDashes(new double[]{4.0, 3.0});
                             gc.strokeRoundRect(bx1, by1, bx2 - bx1, by2 - by1, 6, 6);
                             gc.setLineDashes(null);
 
-                            gc.setFill(Color.web("#06b6d4", 0.7));
+                            gc.setFill(theme.accent.deriveColor(0, 1, 1, 0.7));
                             gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
                             gc.fillText("SUBARRAY B (SORTED)", bx1 + 6, by1 - 4);
                         }
@@ -1170,13 +1422,13 @@ public class ChromaCascadeApp extends Application {
                         double oy1 = startY + 60 - 10;
                         double oy2 = startY + 60 + boxHeight + 10;
 
-                        gc.setStroke(Color.web("#10b981", 0.6));
+                        gc.setStroke(theme.sorted.deriveColor(0, 1, 1, 0.6));
                         gc.setLineWidth(1.2);
                         gc.setLineDashes(new double[]{4.0, 3.0});
                         gc.strokeRoundRect(ox1, oy1, ox2 - ox1, oy2 - oy1, 6, 6);
                         gc.setLineDashes(null);
 
-                        gc.setFill(Color.web("#10b981", 0.7));
+                        gc.setFill(theme.sorted.deriveColor(0, 1, 1, 0.7));
                         gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
                         gc.fillText("MERGED OUTPUT SLOT", ox1 + 6, oy1 - 4);
                     } else {
@@ -1185,13 +1437,13 @@ public class ChromaCascadeApp extends Application {
                         double ry1 = startY - 15;
                         double ry2 = startY + boxHeight + 15;
 
-                        gc.setStroke(Color.web("#475569", 0.6));
+                        gc.setStroke(theme.border.deriveColor(0, 1, 1, 0.6));
                         gc.setLineWidth(1.5);
                         gc.setLineDashes(new double[]{6.0, 4.0});
                         gc.strokeRoundRect(rx1, ry1, rx2 - rx1, ry2 - ry1, 6, 6);
                         gc.setLineDashes(null);
 
-                        gc.setFill(Color.web("#94a3b8", 0.7));
+                        gc.setFill(theme.textMuted.deriveColor(0, 1, 1, 0.7));
                         gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 9));
                         gc.fillText("ACTIVE SUBARRAY", rx1 + 6, ry1 - 4);
                     }
@@ -1248,7 +1500,7 @@ public class ChromaCascadeApp extends Application {
                     boolean isHeadA = (i == headA && model.getFreezeFrames() <= 0);
                     boolean isHeadB = (i == headB && model.getFreezeFrames() <= 0);
 
-                    Color segmentColor = isSorted ? Color.web("#10b981") : Color.web("#334155"); // green if sorted, slate if unsorted
+                    Color segmentColor = isSorted ? theme.sorted : theme.unsorted;
 
                     // Glow background shadow for sorted elements
                     if (isSorted) {
@@ -1270,7 +1522,7 @@ public class ChromaCascadeApp extends Application {
                     if (isPivot) {
                         borderCol = Color.web("#ea580c"); // Orange
                     } else if (isHeadA || isHeadB) {
-                        borderCol = Color.web("#06b6d4"); // Cyan
+                        borderCol = theme.accent;
                     }
                     gc.setStroke(borderCol);
                     gc.setLineWidth(isPivot || isHeadA || isHeadB ? 2.0 : 1.0);
@@ -1278,7 +1530,7 @@ public class ChromaCascadeApp extends Application {
 
                     // Selection cursor highlight
                     if (i == model.getActiveSegmentCursor() && model.getFreezeFrames() <= 0) {
-                        gc.setStroke(Color.web("#f59e0b")); // Neon Gold
+                        gc.setStroke(theme.accent);
                         gc.setLineWidth(2.5);
                         gc.strokeRoundRect(x - 1, y - 1, w + 2, h + 2, 4, 4);
                     }
@@ -1295,7 +1547,7 @@ public class ChromaCascadeApp extends Application {
                     } else if (isHeadA) {
                         double badgeW = Math.min(w, 42.0);
                         double badgeX = x + (w - badgeW) / 2.0;
-                        gc.setFill(Color.web("#06b6d4"));
+                        gc.setFill(theme.accent);
                         gc.fillRoundRect(badgeX, y - 17, badgeW, 13, 3, 3);
                         gc.setFill(Color.WHITE);
                         gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
@@ -1303,7 +1555,7 @@ public class ChromaCascadeApp extends Application {
                     } else if (isHeadB) {
                         double badgeW = Math.min(w, 42.0);
                         double badgeX = x + (w - badgeW) / 2.0;
-                        gc.setFill(Color.web("#06b6d4"));
+                        gc.setFill(theme.accent);
                         gc.fillRoundRect(badgeX, y - 17, badgeW, 13, 3, 3);
                         gc.setFill(Color.WHITE);
                         gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
@@ -1311,7 +1563,7 @@ public class ChromaCascadeApp extends Application {
                     }
 
                     // Centered raw integer value
-                    gc.setFill(Color.WHITE);
+                    gc.setFill(theme.text);
                     gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
                     String valStr = String.valueOf(segment.getRawValue());
                     double textWidth = 10 * valStr.length();
@@ -1320,7 +1572,7 @@ public class ChromaCascadeApp extends Application {
                     // Weight detail
                     String weightStr = String.format("%.1f", segment.calculateSortWeight());
                     gc.setFont(Font.font("Consolas", FontWeight.NORMAL, 9.0));
-                    gc.setFill(Color.web("#94a3b8", 0.8));
+                    gc.setFill(theme.textMuted.deriveColor(0, 1, 1, 0.8));
                     double wStrWidth = 5.5 * weightStr.length();
                     gc.fillText(weightStr, x + (w - wStrWidth) / 2.0, y + h - 6);
                 }
@@ -1344,14 +1596,14 @@ public class ChromaCascadeApp extends Application {
                         }
 
                         // Draw operator circle background
-                        gc.setFill(Color.web("#0b0f19"));
-                        gc.setStroke(Color.web("#f59e0b"));
+                        gc.setFill(theme.bg);
+                        gc.setStroke(theme.accent);
                         gc.setLineWidth(1.5);
                         gc.fillOval(midX - 15, midY - 15, 30, 30);
                         gc.strokeOval(midX - 15, midY - 15, 30, 30);
 
                         // Draw operator text
-                        gc.setFill(Color.web("#f59e0b"));
+                        gc.setFill(theme.accent);
                         gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
                         gc.fillText(op, midX - 5.5, midY + 5.5);
                     }
@@ -1384,49 +1636,49 @@ public class ChromaCascadeApp extends Application {
             // Draw completed wave banner overlay
             if (model.getFreezeFrames() > 0) {
                 double overlayY = (canvas.getHeight() - 100.0) / 2.0;
-                gc.setFill(Color.web("#0b0f19", 0.9));
+                gc.setFill(theme.bg.deriveColor(0, 1, 1, 0.9));
                 gc.fillRect(10, overlayY, canvas.getWidth() - 20, 100);
 
-                gc.setStroke(Color.web("#10b981", 0.8));
+                gc.setStroke(theme.sorted.deriveColor(0, 1, 1, 0.8));
                 gc.setLineWidth(1.5);
                 gc.strokeRect(10, overlayY, canvas.getWidth() - 20, 100);
 
-                gc.setFill(Color.web("#10b981"));
+                gc.setFill(theme.sorted);
                 gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
                 String bannerMsg = "WAVE COMPLETED!";
                 gc.fillText(bannerMsg, (canvas.getWidth() - 14 * bannerMsg.length()) / 2.0, overlayY + 44);
 
-                gc.setFill(Color.WHITE);
+                gc.setFill(theme.text);
                 gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
                 gc.fillText("Generating next scrambled set...", canvas.getWidth() / 2.0 - 80, overlayY + 74);
             }
 
             // Draw Game Over Screen Mask
             if (model.isGameOver()) {
-                gc.setFill(Color.web("#0b0f19", 0.96));
+                gc.setFill(theme.bg.deriveColor(0, 1, 1, 0.96));
                 gc.fillRect(10, 10, canvas.getWidth() - 20, canvas.getHeight() - 20);
 
                 if (model.isEnteringInitials()) {
                     // Draw Initials Entry Box
-                    gc.setStroke(Color.web("#f59e0b", 0.8));
+                    gc.setStroke(theme.accent.deriveColor(0, 1, 1, 0.8));
                     gc.setLineWidth(2.0);
                     gc.strokeRoundRect(200, 70, 400, 260, 8, 8);
-                    gc.setFill(Color.web("#0f172a", 0.98));
+                    gc.setFill(theme.panelBg.deriveColor(0, 1, 1, 0.98));
                     gc.fillRoundRect(200, 70, 400, 260, 8, 8);
 
                     // Title
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(theme.accent);
                     gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
                     String title = "NEW HIGH SCORE!";
                     gc.fillText(title, 400 - (title.length() * 6.5), 115);
 
                     // Subtitle
-                    gc.setFill(Color.WHITE);
+                    gc.setFill(theme.text);
                     gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 14));
                     String sub = "Score: " + model.getScore();
                     gc.fillText(sub, 400 - (sub.length() * 4.0), 145);
 
-                    gc.setFill(Color.web("#94a3b8"));
+                    gc.setFill(theme.textMuted);
                     gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
                     gc.fillText("ENTER YOUR INITIALS", 335, 180);
 
@@ -1435,25 +1687,25 @@ public class ChromaCascadeApp extends Application {
                     for (int k = 0; k < 3; k++) {
                         double bx = 330 + k * 55;
                         double by = 200;
-                        gc.setFill(Color.web("#1e293b"));
+                        gc.setFill(theme.border);
                         gc.fillRoundRect(bx, by, 40, 50, 4, 4);
-                        gc.setStroke(Color.web("#334155"));
+                        gc.setStroke(theme.textMuted);
                         gc.strokeRoundRect(bx, by, 40, 50, 4, 4);
 
                         if (k < initials.length()) {
-                            gc.setFill(Color.WHITE);
+                            gc.setFill(theme.text);
                             gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
                             gc.fillText(String.valueOf(initials.charAt(k)), bx + 11, by + 36);
                         } else if (k == initials.length()) {
                             // Flash cursor
                             if ((System.currentTimeMillis() / 400) % 2 == 0) {
-                                gc.setFill(Color.web("#f59e0b"));
+                                gc.setFill(theme.accent);
                                 gc.fillRect(bx + 10, by + 40, 20, 4);
                             }
                         }
                     }
 
-                    gc.setFill(Color.web("#64748b"));
+                    gc.setFill(theme.textMuted);
                     gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10));
                     gc.fillText("TYPE A-Z AND PRESS ENTER TO REGISTER", 295, 290);
                 } else {
@@ -1461,7 +1713,7 @@ public class ChromaCascadeApp extends Application {
                     gc.setStroke(Color.web("#ef4444", 0.7));
                     gc.setLineWidth(2.0);
                     gc.strokeRoundRect(160, 50, 480, 300, 8, 8);
-                    gc.setFill(Color.web("#0f172a", 0.98));
+                    gc.setFill(theme.panelBg.deriveColor(0, 1, 1, 0.98));
                     gc.fillRoundRect(160, 50, 480, 300, 8, 8);
 
                     // Title
@@ -1471,20 +1723,20 @@ public class ChromaCascadeApp extends Application {
                     gc.fillText(title, 400 - (title.length() * 6.5), 90);
 
                     // Subtitle
-                    gc.setFill(Color.WHITE);
+                    gc.setFill(theme.text);
                     gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
                     String sub = "Final Score: " + model.getScore() + " | Completed Waves: " + model.getCompletedWavesCount();
                     gc.fillText(sub, 400 - (sub.length() * 4.0), 115);
 
                     // Headers
-                    gc.setFill(Color.web("#94a3b8"));
+                    gc.setFill(theme.textMuted);
                     gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
                     gc.fillText("RANK", 190, 145);
                     gc.fillText("NAME", 260, 145);
                     gc.fillText("SCORE", 380, 145);
                     gc.fillText("DATE", 490, 145);
 
-                    gc.setStroke(Color.web("#1e293b"));
+                    gc.setStroke(theme.border);
                     gc.setLineWidth(1.0);
                     gc.strokeLine(180, 153, 620, 153);
 
@@ -1500,7 +1752,7 @@ public class ChromaCascadeApp extends Application {
                             highlight = true;
                         }
 
-                        Color rowColor = highlight ? Color.web("#f59e0b") : Color.web("#cbd5e1");
+                        Color rowColor = highlight ? theme.accent : theme.text;
                         gc.setFill(rowColor);
                         gc.setFont(Font.font("Consolas", highlight ? FontWeight.BOLD : FontWeight.NORMAL, 12));
                         
@@ -1510,10 +1762,10 @@ public class ChromaCascadeApp extends Application {
                         gc.fillText(ent.date, 490, ry);
                     }
 
-                    gc.setStroke(Color.web("#1e293b"));
+                    gc.setStroke(theme.border);
                     gc.strokeLine(180, 305, 620, 305);
 
-                    gc.setFill(Color.web("#94a3b8"));
+                    gc.setFill(theme.textMuted);
                     gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
                     gc.fillText("Press R to Restart | ESC to Main Menu", 295, 328);
                 }
@@ -1536,7 +1788,7 @@ public class ChromaCascadeApp extends Application {
 
             // Draw combo count if comboCount >= 2
             if (model.getComboCount() >= 2) {
-                gc.setFill(Color.web("#f59e0b"));
+                gc.setFill(theme.accent);
                 gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 15));
                 String comboText = "COMBO x" + model.getComboCount() + " (" + model.getComboCount() + "x Multiplier!)";
                 double pulse = 1.0 + 0.04 * Math.sin(System.currentTimeMillis() / 100.0);
@@ -1545,9 +1797,9 @@ public class ChromaCascadeApp extends Application {
                 gc.scale(pulse, pulse);
                 
                 // Add retro shadow
-                gc.setFill(Color.web("#0b0f19"));
+                gc.setFill(theme.bg);
                 gc.fillText(comboText, 1, 1);
-                gc.setFill(Color.web("#f59e0b"));
+                gc.setFill(theme.accent);
                 gc.fillText(comboText, 0, 0);
                 gc.restore();
             }
@@ -1560,6 +1812,17 @@ public class ChromaCascadeApp extends Application {
                     p.draw(gc);
                 } else {
                     it.remove();
+                }
+            }
+
+            // Update and draw floating texts
+            java.util.Iterator<FloatingText> fit = floatingTexts.iterator();
+            while (fit.hasNext()) {
+                FloatingText ft = fit.next();
+                if (ft.update()) {
+                    ft.draw(gc);
+                } else {
+                    fit.remove();
                 }
             }
         }
@@ -1628,7 +1891,13 @@ public class ChromaCascadeApp extends Application {
             model.setScore(0);
             model.setCompletedWavesCount(0);
             
-            int startingTime = model.getTargetAlgorithm().equalsIgnoreCase("Selection Sort") ? 20 : 40;
+            int startingTime = 20;
+            String targetAlgo = model.getTargetAlgorithm();
+            if (targetAlgo.equalsIgnoreCase("Quick Sort") || targetAlgo.equalsIgnoreCase("Merge Sort")) {
+                startingTime = 40;
+            } else if (targetAlgo.equalsIgnoreCase("Bubble Sort") || targetAlgo.equalsIgnoreCase("Insertion Sort")) {
+                startingTime = 30;
+            }
             model.setCountdownTimer(startingTime);
             
             model.setLastSortDurationNs(0);
@@ -1674,6 +1943,10 @@ public class ChromaCascadeApp extends Application {
                 stepsList = GridSorter.generateQuickSortSteps(set);
             } else if (mode.equalsIgnoreCase("Merge Sort")) {
                 stepsList = GridSorter.generateMergeSortSteps(set);
+            } else if (mode.equalsIgnoreCase("Bubble Sort")) {
+                stepsList = GridSorter.generateBubbleSortSteps(set);
+            } else if (mode.equalsIgnoreCase("Insertion Sort")) {
+                stepsList = GridSorter.generateInsertionSortSteps(set);
             } else {
                 stepsList = GridSorter.generateSelectionSortSteps(set);
             }
@@ -1744,7 +2017,7 @@ public class ChromaCascadeApp extends Application {
                         prevCursor = length - 1;
                     }
                     model.setActiveSegmentCursor(prevCursor);
-                    SoundManager.playClick();
+                    SoundManager.playClick(-0.35);
                     break;
 
                 case D:
@@ -1754,7 +2027,7 @@ public class ChromaCascadeApp extends Application {
                         nextCursor = 0;
                     }
                     model.setActiveSegmentCursor(nextCursor);
-                    SoundManager.playClick();
+                    SoundManager.playClick(0.35);
                     break;
 
                 case ENTER:
@@ -1800,36 +2073,47 @@ public class ChromaCascadeApp extends Application {
             double px = startX + cursor * boxWidth + boxWidth / 2.0;
             double py = view.getCanvas().getHeight() / 2.0;
             
+            // Calculate spatial stereo pan based on cursor position
+            double pan = 0.0;
+            if (set.length > 1) {
+                pan = ((double) cursor / (set.length - 1)) * 2.0 - 1.0;
+            }
+            
             if (cursor == step.correctIndex) {
                 int val = set[cursor].getRawValue();
                 GridSorter.shiftElement(set, step.correctIndex, step.targetIndex);
                 
-                SoundManager.playSuccess();
+                SoundManager.playSuccess(pan);
                 
                 model.setCurrentStep(currentStepIdx + 1);
                 model.setComboCount(model.getComboCount() + 1);
                 
                 // Spawn green particles
-                view.spawnParticles(px, py, Color.web("#10b981"), 25);
+                view.spawnParticles(px, py, model.getTheme().sorted, 25);
                 
                 if (currentStepIdx + 1 < steps.size()) {
                     model.setActiveSegmentCursor(steps.get(currentStepIdx + 1).startIndex);
                 }
                 
-                // Award points for step
+                // Award points for step and spawn floating texts
                 if (!model.isPracticeMode()) {
                     int stepPts = 10 * model.getComboCount();
                     model.setScore(model.getScore() + stepPts);
                     addLogMessage(String.format("CORRECT: Value %d shifted. (+%d PTS, Combo x%d!)", val, stepPts, model.getComboCount()));
+                    view.spawnFloatingText(px, py - 20, "+" + stepPts + " PTS", model.getTheme().sorted);
+                    if (model.getComboCount() >= 2) {
+                        view.spawnFloatingText(px, py - 40, "COMBO x" + model.getComboCount() + "!", model.getTheme().accent);
+                    }
                 } else {
                     addLogMessage(String.format("CORRECT: Value %d shifted.", val));
+                    view.spawnFloatingText(px, py - 20, "CORRECT!", model.getTheme().sorted);
                 }
                 
                 if (model.getCurrentStep() >= steps.size()) {
                     checkWinCondition();
                 }
             } else {
-                SoundManager.playFailure();
+                SoundManager.playFailure(pan);
                 model.setErrorFlashFrames(15);
                 model.setWaveErrors(model.getWaveErrors() + 1);
                 model.setComboCount(0); // Reset combo
@@ -1846,8 +2130,12 @@ public class ChromaCascadeApp extends Application {
                     }
                     model.setScore(Math.max(0, model.getScore() - 25));
                     addLogMessage(String.format("INCORRECT: Penalty applied. (-25 PTS, Timer -3s)"));
+                    
+                    view.spawnFloatingText(px, py - 20, "-25 PTS", Color.web("#ef4444"));
+                    view.spawnFloatingText(px, py - 40, "-3s TIMER", Color.web("#f43f5e"));
                 } else {
                     addLogMessage("INCORRECT: Selected block is invalid!");
+                    view.spawnFloatingText(px, py - 20, "TRY AGAIN!", Color.web("#ef4444"));
                 }
                 
                 model.setActiveSegmentCursor(step.startIndex);
@@ -1872,7 +2160,13 @@ public class ChromaCascadeApp extends Application {
                 model.setScore(model.getScore() + waveScore);
             }
             
-            int additionalTime = model.getTargetAlgorithm().equalsIgnoreCase("Merge Sort") ? 30 : 10;
+            int additionalTime = 10;
+            String targetAlgo = model.getTargetAlgorithm();
+            if (targetAlgo.equalsIgnoreCase("Merge Sort")) {
+                additionalTime = 30;
+            } else if (targetAlgo.equalsIgnoreCase("Bubble Sort") || targetAlgo.equalsIgnoreCase("Insertion Sort") || targetAlgo.equalsIgnoreCase("Quick Sort")) {
+                additionalTime = 15;
+            }
             if (!model.isPracticeMode()) {
                 model.setCountdownTimer(model.getCountdownTimer() + additionalTime);
             }
@@ -2000,6 +2294,44 @@ public class ChromaCascadeApp extends Application {
         }
     }
 
+    // --- Floating Text System ---
+    public static class FloatingText {
+        double x, y;
+        double vy;
+        double alpha;
+        String text;
+        Color color;
+        int maxLife;
+        int life;
+        Font font;
+
+        public FloatingText(double x, double y, String text, Color color) {
+            this.x = x;
+            this.y = y;
+            this.vy = -1.2;
+            this.text = text;
+            this.color = color;
+            this.maxLife = 45;
+            this.life = maxLife;
+            this.alpha = 1.0;
+            this.font = Font.font("Segoe UI", FontWeight.BOLD, 14);
+        }
+
+        public boolean update() {
+            y += vy;
+            vy *= 0.97;
+            life--;
+            alpha = (double) life / maxLife;
+            return life > 0;
+        }
+
+        public void draw(GraphicsContext gc) {
+            gc.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(), alpha));
+            gc.setFont(font);
+            gc.fillText(text, x - (text.length() * 3.5), y);
+        }
+    }
+
     // --- Particle System ---
     public static class Particle {
         double x, y;
@@ -2052,31 +2384,30 @@ public class ChromaCascadeApp extends Application {
         rootContainer.setStyle("-fx-background-color: #0b0f19;");
 
         // 1. Build SLEEK MAIN MENU LAYOUT
-        VBox menuLayout = new VBox(25);
+        VBox menuLayout = new VBox(20);
         menuLayout.setAlignment(Pos.CENTER);
-        menuLayout.setPadding(new Insets(50));
+        menuLayout.setPadding(new Insets(40));
         menuLayout.setStyle("-fx-background-color: #0b0f19;");
 
         Label menuTitle = new Label("SORT PULSE");
         menuTitle.setStyle("-fx-font-family: 'Segoe UI', 'Outfit', sans-serif; -fx-font-size: 44px; -fx-font-weight: bold; -fx-text-fill: #10b981; -fx-effect: dropshadow(three-pass-box, rgba(16,185,129,0.4), 12, 0, 0, 0);");
         
         Label menuSubtitle = new Label("TIMED PUZZLE BLITZ ENGINE");
-        menuSubtitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #64748b; -fx-padding: -15px 0 20px 0;");
+        menuSubtitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #64748b; -fx-padding: -15px 0 10px 0;");
 
         Button selectionBtn = new Button("SELECTION SORT");
-        selectionBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
-        selectionBtn.setOnMouseEntered(e -> selectionBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #10b981; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(16,185,129,0.3), 8, 0, 0, 0);"));
-        selectionBtn.setOnMouseExited(e -> selectionBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
-
         Button quickBtn = new Button("QUICK SORT");
-        quickBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
-        quickBtn.setOnMouseEntered(e -> quickBtn.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #f59e0b; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(245,158,11,0.3), 8, 0, 0, 0);"));
-        quickBtn.setOnMouseExited(e -> quickBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
-
         Button mergeBtn = new Button("MERGE SORT");
-        mergeBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
-        mergeBtn.setOnMouseEntered(e -> mergeBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #3b82f6; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(59,130,246,0.3), 8, 0, 0, 0);"));
-        mergeBtn.setOnMouseExited(e -> mergeBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
+        
+        Button bubbleBtn = new Button("BUBBLE SORT");
+        bubbleBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
+        bubbleBtn.setOnMouseEntered(e -> bubbleBtn.setStyle("-fx-background-color: #ec4899; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #ec4899; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(236,72,153,0.3), 8, 0, 0, 0);"));
+        bubbleBtn.setOnMouseExited(e -> bubbleBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
+
+        Button insertionBtn = new Button("INSERTION SORT");
+        insertionBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
+        insertionBtn.setOnMouseEntered(e -> insertionBtn.setStyle("-fx-background-color: #a855f7; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #a855f7; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(168,85,247,0.3), 8, 0, 0, 0);"));
+        insertionBtn.setOnMouseExited(e -> insertionBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
 
         CheckBox practiceModeCb = new CheckBox("PRACTICE MODE (NO TIMER)");
         practiceModeCb.setStyle("-fx-text-fill: #94a3b8; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-cursor: hand;");
@@ -2084,15 +2415,25 @@ public class ChromaCascadeApp extends Application {
             model.setPracticeMode(newVal);
         });
 
+        // Theme ComboBox Selector
+        HBox themeBox = new HBox(15);
+        themeBox.setAlignment(Pos.CENTER);
+        Label themeLabel = new Label("UI COLOR THEME:");
+        themeLabel.setStyle("-fx-text-fill: #94a3b8; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px;");
+        ComboBox<String> themeCb = new ComboBox<>();
+        themeCb.getItems().addAll("Classic Neon", "Cyberpunk", "GameBoy Retro", "Vaporwave", "Matrix Terminal");
+        themeCb.setValue("Classic Neon");
+        themeBox.getChildren().addAll(themeLabel, themeCb);
+
         Button leaderboardBtn = new Button("HIGH SCORES");
         leaderboardBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;");
         leaderboardBtn.setOnMouseEntered(e -> leaderboardBtn.setStyle("-fx-background-color: #a855f7; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #a855f7; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(168,85,247,0.3), 8, 0, 0, 0);"));
         leaderboardBtn.setOnMouseExited(e -> leaderboardBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-min-width: 280; -fx-cursor: hand;"));
 
         Label menuGuide = new Label("Press ESC to Quit Game");
-        menuGuide.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-text-fill: #475569; -fx-padding: 20px 0 0 0;");
+        menuGuide.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-text-fill: #475569; -fx-padding: 10px 0 0 0;");
 
-        menuLayout.getChildren().addAll(menuTitle, menuSubtitle, selectionBtn, quickBtn, mergeBtn, practiceModeCb, leaderboardBtn, menuGuide);
+        menuLayout.getChildren().addAll(menuTitle, menuSubtitle, selectionBtn, quickBtn, mergeBtn, bubbleBtn, insertionBtn, practiceModeCb, themeBox, leaderboardBtn, menuGuide);
 
         // Leaderboards Layout
         VBox leaderboardLayout = new VBox(20);
@@ -2103,31 +2444,31 @@ public class ChromaCascadeApp extends Application {
         Label lbTitle = new Label("HIGH SCORES");
         lbTitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: #a855f7;");
 
-        HBox columns = new HBox(40);
+        HBox columns = new HBox(30); // slightly tighter column spacing to fit all 5 modes
         columns.setAlignment(Pos.CENTER);
 
         Runnable refreshLeaderboard = () -> {
             columns.getChildren().clear();
-            String[] modes = {"Selection Sort", "Quick Sort", "Merge Sort"};
+            String[] modes = {"Selection Sort", "Bubble Sort", "Insertion Sort", "Quick Sort", "Merge Sort"};
             for (String modeName : modes) {
                 VBox col = new VBox(10);
                 col.setAlignment(Pos.TOP_CENTER);
-                col.setStyle("-fx-background-color: #0f172a; -fx-padding: 15px; -fx-background-radius: 6px; -fx-border-color: #1e293b; -fx-border-width: 1px; -fx-min-width: 200;");
+                col.setStyle("-fx-background-color: #0f172a; -fx-padding: 12px; -fx-background-radius: 6px; -fx-border-color: #1e293b; -fx-border-width: 1px; -fx-min-width: 170;");
 
                 Label modeHeader = new Label(modeName.toUpperCase());
-                modeHeader.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 12px; -fx-text-fill: #cbd5e1;");
+                modeHeader.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 10px; -fx-text-fill: #cbd5e1;");
                 col.getChildren().add(modeHeader);
 
                 java.util.List<LeaderboardManager.Entry> top = LeaderboardManager.getTopScores(modeName, 5);
                 if (top.isEmpty()) {
                     Label noScores = new Label("NO SCORES YET");
-                    noScores.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 11px; -fx-text-fill: #475569;");
+                    noScores.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 10px; -fx-text-fill: #475569;");
                     col.getChildren().add(noScores);
                 } else {
                     for (int i = 0; i < top.size(); i++) {
                         LeaderboardManager.Entry ent = top.get(i);
                         Label entryLbl = new Label((i + 1) + ". " + ent.name + " - " + ent.score);
-                        entryLbl.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 12px; -fx-text-fill: #cbd5e1;");
+                        entryLbl.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px; -fx-text-fill: #cbd5e1;");
                         col.getChildren().add(entryLbl);
                     }
                 }
@@ -2136,9 +2477,6 @@ public class ChromaCascadeApp extends Application {
         };
 
         Button backBtn = new Button("BACK TO MENU");
-        backBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-cursor: hand;");
-        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: #10b981; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: #10b981; -fx-border-width: 1px; -fx-cursor: hand;"));
-        backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-cursor: hand;"));
         backBtn.setOnAction(e -> {
             rootContainer.getChildren().setAll(menuLayout);
         });
@@ -2205,6 +2543,23 @@ public class ChromaCascadeApp extends Application {
 
         gameLayout.getChildren().addAll(topHud, canvasWrapper, bottomPanel, controlsBar);
 
+        // Add Listener to Theme ComboBox to apply selected styles
+        themeCb.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                model.setActiveThemeName(newVal);
+                applyTheme(newVal, rootContainer, menuLayout, leaderboardLayout, gameLayout, 
+                    menuTitle, menuSubtitle, themeLabel, themeCb, practiceModeCb, 
+                    lbTitle, backBtn, logView, timerVal, scoreVal, modeLabel, controlGuide, 
+                    selectionBtn, quickBtn, mergeBtn, bubbleBtn, insertionBtn, leaderboardBtn);
+            }
+        });
+
+        // Initialize with default Theme
+        applyTheme("Classic Neon", rootContainer, menuLayout, leaderboardLayout, gameLayout, 
+            menuTitle, menuSubtitle, themeLabel, themeCb, practiceModeCb, 
+            lbTitle, backBtn, logView, timerVal, scoreVal, modeLabel, controlGuide, 
+            selectionBtn, quickBtn, mergeBtn, bubbleBtn, insertionBtn, leaderboardBtn);
+
         // Add Menu Initially
         rootContainer.getChildren().add(menuLayout);
 
@@ -2242,6 +2597,26 @@ public class ChromaCascadeApp extends Application {
         mergeBtn.setOnAction(event -> {
             showTutorialOverlay(rootContainer, "Merge Sort", () -> {
                 model.setTargetAlgorithm("Merge Sort");
+                model.setGameState("PLAYING");
+                controller.initializeGame();
+                rootContainer.getChildren().setAll(gameLayout);
+                gameLayout.requestFocus();
+            });
+        });
+
+        bubbleBtn.setOnAction(event -> {
+            showTutorialOverlay(rootContainer, "Bubble Sort", () -> {
+                model.setTargetAlgorithm("Bubble Sort");
+                model.setGameState("PLAYING");
+                controller.initializeGame();
+                rootContainer.getChildren().setAll(gameLayout);
+                gameLayout.requestFocus();
+            });
+        });
+
+        insertionBtn.setOnAction(event -> {
+            showTutorialOverlay(rootContainer, "Insertion Sort", () -> {
+                model.setTargetAlgorithm("Insertion Sort");
                 model.setGameState("PLAYING");
                 controller.initializeGame();
                 rootContainer.getChildren().setAll(gameLayout);
@@ -2338,6 +2713,14 @@ public class ChromaCascadeApp extends Application {
             accentColor = "#f59e0b"; // Amber gold
             descText = "VISUAL PLAY GUIDE:\n1. PIVOT is the rightmost block of active range.\n2. PRESS [A]/[D] to move selection cursor.\n3. PRESS [ENTER] on blocks smaller than/equal to pivot to shift them left. Finally shift pivot.";
             proTip = "Pro Tip: Look at the orange PIVOT badge and follow the TARGET SLOT arrow to partition elements!";
+        } else if (algorithm.equalsIgnoreCase("Bubble Sort")) {
+            accentColor = "#ec4899"; // Hot pink / Vaporwave pink
+            descText = "VISUAL PLAY GUIDE:\n1. COMPARE adjacent elements under the flashing cursor frame.\n2. DECIDE if they are in the correct order (left <= right).\n3. IF OUT OF ORDER, PRESS [ENTER] to swap them. Otherwise, PRESS [D] to step forward.";
+            proTip = "Pro Tip: Bubble Sort repeatedly swaps adjacent out-of-order pairs from left to right until the largest element bubbles to the end!";
+        } else if (algorithm.equalsIgnoreCase("Insertion Sort")) {
+            accentColor = "#8b5cf6"; // Purple / Indigo
+            descText = "VISUAL PLAY GUIDE:\n1. THE CURSOR highlights the element to be inserted into the sorted sub-list on its left.\n2. PRESS [ENTER] to swap the cursor element leftward if it is smaller than its left neighbor.\n3. REPEAT until the element is in its correct sorted position, then press [D] to move to the next item.";
+            proTip = "Pro Tip: Shift the element leftward step-by-step using [ENTER] as long as the left element is larger than it!";
         } else {
             accentColor = "#3b82f6"; // Dodge blue
             descText = "VISUAL PLAY GUIDE:\n1. COMPARE the two subarray head blocks currently being merged.\n2. SELECT the smaller value of the two using the cursor.\n3. PRESS [ENTER] to shift it down into the output area.";
@@ -2358,7 +2741,18 @@ public class ChromaCascadeApp extends Application {
 
         // 3. Step-by-Step Navigation Controls
         final int[] currentStepHolder = {0};
-        final int maxSteps = algorithm.equalsIgnoreCase("Selection Sort") ? 11 : (algorithm.equalsIgnoreCase("Quick Sort") ? 9 : 5);
+        final int maxSteps;
+        if (algorithm.equalsIgnoreCase("Selection Sort")) {
+            maxSteps = 11;
+        } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
+            maxSteps = 9;
+        } else if (algorithm.equalsIgnoreCase("Bubble Sort")) {
+            maxSteps = 6;
+        } else if (algorithm.equalsIgnoreCase("Insertion Sort")) {
+            maxSteps = 6;
+        } else {
+            maxSteps = 5;
+        }
 
         HBox navBox = new HBox(20);
         navBox.setAlignment(Pos.CENTER);
@@ -2447,6 +2841,18 @@ public class ChromaCascadeApp extends Application {
             private boolean[] mergeSub1Merged = {false, false};
             private boolean[] mergeSub2Merged = {false, false};
             private boolean[] mergeOutGreen = {false, false, false, false};
+
+            private double[] bubbleVals = {8, 15, 5, 12, 10};
+            private double[] bubbleX = {100, 180, 260, 340, 420};
+            private double[] bubbleTargetX = {100, 180, 260, 340, 420};
+            private boolean[] bubbleGreen = {false, false, false, false, false};
+            private int bubbleCursor = 0;
+
+            private double[] insertionVals = {5, 12, 8, 15, 10};
+            private double[] insertionX = {100, 180, 260, 340, 420};
+            private double[] insertionTargetX = {100, 180, 260, 340, 420};
+            private boolean[] insertionGreen = {false, false, false, false, false};
+            private int insertionCursor = 0;
             
             @Override
             public void handle(long now) {
@@ -2461,6 +2867,10 @@ public class ChromaCascadeApp extends Application {
                     updateAndDrawSelection(gc, step);
                 } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
                     updateAndDrawQuick(gc, step);
+                } else if (algorithm.equalsIgnoreCase("Bubble Sort")) {
+                    updateAndDrawBubble(gc, step);
+                } else if (algorithm.equalsIgnoreCase("Insertion Sort")) {
+                    updateAndDrawInsertion(gc, step);
                 } else {
                     updateAndDrawMerge(gc, step);
                 }
@@ -3159,6 +3569,267 @@ public class ChromaCascadeApp extends Application {
                 }
                 
                 drawLegend(gc, "Merge Sort", 10, 235);
+            }
+
+            private void updateAndDrawBubble(GraphicsContext gc, int step) {
+                if (step == 0) {
+                    bubbleTargetX[0] = 100; bubbleTargetX[1] = 180; bubbleTargetX[2] = 260; bubbleTargetX[3] = 340; bubbleTargetX[4] = 420;
+                    bubbleCursor = 0;
+                    bubbleGreen[0] = false; bubbleGreen[1] = false; bubbleGreen[2] = false; bubbleGreen[3] = false; bubbleGreen[4] = false;
+                } else if (step == 1) {
+                    bubbleTargetX[0] = 100; bubbleTargetX[1] = 180; bubbleTargetX[2] = 260; bubbleTargetX[3] = 340; bubbleTargetX[4] = 420;
+                    bubbleCursor = 1;
+                    bubbleGreen[0] = false; bubbleGreen[1] = false; bubbleGreen[2] = false; bubbleGreen[3] = false; bubbleGreen[4] = false;
+                } else if (step == 2) {
+                    bubbleTargetX[0] = 100; bubbleTargetX[1] = 260; bubbleTargetX[2] = 180; bubbleTargetX[3] = 340; bubbleTargetX[4] = 420;
+                    bubbleCursor = 2;
+                    bubbleGreen[0] = false; bubbleGreen[1] = false; bubbleGreen[2] = false; bubbleGreen[3] = false; bubbleGreen[4] = false;
+                } else if (step == 3) {
+                    bubbleTargetX[0] = 100; bubbleTargetX[1] = 340; bubbleTargetX[2] = 180; bubbleTargetX[3] = 260; bubbleTargetX[4] = 420;
+                    bubbleCursor = 3;
+                    bubbleGreen[0] = false; bubbleGreen[1] = false; bubbleGreen[2] = false; bubbleGreen[3] = false; bubbleGreen[4] = false;
+                } else if (step == 4) {
+                    bubbleTargetX[0] = 100; bubbleTargetX[1] = 420; bubbleTargetX[2] = 180; bubbleTargetX[3] = 260; bubbleTargetX[4] = 340;
+                    bubbleCursor = 4;
+                    bubbleGreen[1] = true; // element 15 is sorted
+                } else {
+                    bubbleTargetX[0] = 100; bubbleTargetX[1] = 420; bubbleTargetX[2] = 180; bubbleTargetX[3] = 260; bubbleTargetX[4] = 340;
+                    bubbleCursor = -1;
+                    bubbleGreen[1] = true;
+                }
+
+                for (int i = 0; i < 5; i++) {
+                    bubbleX[i] += (bubbleTargetX[i] - bubbleX[i]) * 0.15;
+                }
+
+                gc.setFill(Color.web("#ec4899"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                if (step == 0) {
+                    gc.fillText("STEP 1: COMPARE 8 AND 15. SINCE 8 <= 15, THEY ARE IN ORDER. PRESS [D] TO STEP FORWARD.", 15, 25);
+                } else if (step == 1) {
+                    gc.fillText("STEP 2: COMPARE 15 AND 5. SINCE 15 > 5, THEY ARE OUT OF ORDER. PRESS [ENTER] TO SWAP.", 15, 25);
+                } else if (step == 2) {
+                    gc.fillText("STEP 3: COMPARE 15 AND 12. SINCE 15 > 12, THEY ARE OUT OF ORDER. PRESS [ENTER] TO SWAP.", 15, 25);
+                } else if (step == 3) {
+                    gc.fillText("STEP 4: COMPARE 15 AND 10. SINCE 15 > 10, THEY ARE OUT OF ORDER. PRESS [ENTER] TO SWAP.", 15, 25);
+                } else if (step == 4) {
+                    gc.fillText("STEP 5: ELEMENT 15 REACHED THE END AND IS LOCKED IN GREEN (SORTED).", 15, 25);
+                } else {
+                    gc.fillText("STEP 6: FIRST PASS COMPLETE. REPEAT UNTIL ALL BLOCKS ARE SORTED.", 15, 25);
+                }
+
+                double startX = 100;
+                double boxWidth = 80;
+                double boxHeight = 65;
+                double startY = 60;
+
+                if (bubbleCursor >= 0 && bubbleCursor < 4) {
+                    double rx1 = startX + bubbleCursor * boxWidth - 2;
+                    double rx2 = rx1 + boxWidth * 2 - 12;
+                    gc.setStroke(Color.web("#ec4899", 0.8));
+                    gc.setLineWidth(2.0);
+                    gc.setLineDashes(new double[]{4.0, 3.0});
+                    gc.strokeRoundRect(rx1, startY - 8, rx2 - rx1, boxHeight + 16, 6, 6);
+                    gc.setLineDashes(null);
+                    
+                    gc.setFill(Color.web("#ec4899"));
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.fillText("COMPARE PAIR", rx1 + 6, startY - 12);
+                }
+
+                for (int i = 0; i < 5; i++) {
+                    double x = bubbleX[i];
+                    double y = 60;
+                    double w = 65;
+                    double h = 65;
+
+                    boolean isSorted = bubbleGreen[i];
+                    Color col = isSorted ? Color.web("#10b981") : Color.web("#334155");
+
+                    gc.setFill(col);
+                    gc.fillRoundRect(x, y, w, h, 6, 6);
+                    gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
+                    gc.strokeRoundRect(x, y, w, h, 6, 6);
+
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+                    gc.fillText(String.valueOf((int)bubbleVals[i]), x + 22, y + 38);
+                }
+
+                if (bubbleCursor >= 0 && bubbleCursor < 4) {
+                    double cursorX = startX + bubbleCursor * boxWidth;
+                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setLineWidth(2.5);
+                    gc.strokeRoundRect(cursorX - 2, 60 - 2, boxWidth * 2 - 11, 69, 6, 6);
+                }
+
+                boolean dPressed = (step == 0);
+                boolean enterPressed = (step == 1 || step == 2 || step == 3);
+
+                drawKeyCap(gc, 200, 145, "A", false);
+                drawKeyCap(gc, 250, 145, "D", dPressed);
+                drawKeyCap(gc, 320, 145, "ENTER", enterPressed);
+
+                gc.setFill(Color.web("#94a3b8"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                if (step == 0) {
+                    gc.fillText("Adjacent values 8 and 15 are sorted. Press [D] to advance cursor.", 150, 195);
+                } else if (step == 1) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("15 > 5 is out of order. Press [ENTER] to swap elements.", 175, 195);
+                } else if (step == 2) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("15 > 12 is out of order. Press [ENTER] to swap elements.", 175, 195);
+                } else if (step == 3) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("15 > 10 is out of order. Press [ENTER] to swap elements.", 175, 195);
+                } else if (step == 4) {
+                    gc.setFill(Color.web("#10b981"));
+                    gc.fillText("15 bubbled to its final position! Locking element in green.", 160, 195);
+                } else {
+                    gc.fillText("First pass complete. Press [START GAME] to play!", 195, 195);
+                }
+
+                drawLegend(gc, "Bubble Sort", 10, 235);
+            }
+
+            private void updateAndDrawInsertion(GraphicsContext gc, int step) {
+                if (step == 0) {
+                    insertionTargetX[0] = 100; insertionTargetX[1] = 180; insertionTargetX[2] = 260; insertionTargetX[3] = 340; insertionTargetX[4] = 420;
+                    insertionCursor = 2; // highlight 8
+                    insertionGreen[0] = true; insertionGreen[1] = true; insertionGreen[2] = false; insertionGreen[3] = false; insertionGreen[4] = false;
+                } else if (step == 1) {
+                    insertionTargetX[0] = 100; insertionTargetX[1] = 180; insertionTargetX[2] = 260; insertionTargetX[3] = 340; insertionTargetX[4] = 420;
+                    insertionCursor = 2;
+                    insertionGreen[0] = true; insertionGreen[1] = true; insertionGreen[2] = false; insertionGreen[3] = false; insertionGreen[4] = false;
+                } else if (step == 2) {
+                    insertionTargetX[0] = 100; insertionTargetX[1] = 260; insertionTargetX[2] = 180; insertionTargetX[3] = 340; insertionTargetX[4] = 420;
+                    insertionCursor = 1; // 8 is now at index 1
+                    insertionGreen[0] = true; insertionGreen[1] = true; insertionGreen[2] = false; insertionGreen[3] = false; insertionGreen[4] = false;
+                } else if (step == 3) {
+                    insertionTargetX[0] = 100; insertionTargetX[1] = 260; insertionTargetX[2] = 180; insertionTargetX[3] = 340; insertionTargetX[4] = 420;
+                    insertionCursor = 1;
+                    insertionGreen[0] = true; insertionGreen[1] = true; insertionGreen[2] = true; insertionGreen[3] = false; insertionGreen[4] = false;
+                } else if (step == 4) {
+                    insertionTargetX[0] = 100; insertionTargetX[1] = 260; insertionTargetX[2] = 180; insertionTargetX[3] = 340; insertionTargetX[4] = 420;
+                    insertionCursor = 3; // active is now 15
+                    insertionGreen[0] = true; insertionGreen[1] = true; insertionGreen[2] = true; insertionGreen[3] = true; insertionGreen[4] = false;
+                } else {
+                    insertionTargetX[0] = 100; insertionTargetX[1] = 260; insertionTargetX[2] = 180; insertionTargetX[3] = 340; insertionTargetX[4] = 420;
+                    insertionCursor = -1;
+                    insertionGreen[0] = true; insertionGreen[1] = true; insertionGreen[2] = true; insertionGreen[3] = true; insertionGreen[4] = true;
+                }
+
+                for (int i = 0; i < 5; i++) {
+                    insertionX[i] += (insertionTargetX[i] - insertionX[i]) * 0.15;
+                }
+
+                gc.setFill(Color.web("#8b5cf6"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                if (step == 0) {
+                    gc.fillText("STEP 1: SORTED SUB-LIST IS [5, 12]. ACTIVE ELEMENT TO INSERT IS 8.", 15, 25);
+                } else if (step == 1) {
+                    gc.fillText("STEP 2: COMPARE 8 WITH LEFT NEIGHBOR 12. SINCE 8 < 12, PRESS [ENTER] TO SWAP LEFT.", 15, 25);
+                } else if (step == 2) {
+                    gc.fillText("STEP 3: COMPARE 8 WITH NEW LEFT NEIGHBOR 5. SINCE 8 >= 5, IT IS IN POSITION.", 15, 25);
+                } else if (step == 3) {
+                    gc.fillText("STEP 4: INSERTION POSITION FOUND. PRESS [D] TO FINALIZE AND ADVANCE CURSOR.", 15, 25);
+                } else if (step == 4) {
+                    gc.fillText("STEP 5: PREFIX [5, 8, 12] IS NOW SORTED. ACTIVE ELEMENT IS NOW 15.", 15, 25);
+                } else {
+                    gc.fillText("STEP 6: REPEAT FOR ALL ELEMENTS UNTIL THE ENTIRE LIST IS INSERTED.", 15, 25);
+                }
+
+                double startX = 100;
+                double boxWidth = 80;
+                double boxHeight = 65;
+                double startY = 60;
+
+                int sortedCount = 2;
+                if (step == 3 || step == 4) sortedCount = 3;
+                if (step >= 5) sortedCount = 5;
+
+                double rx1 = startX + 2;
+                double rx2 = startX + sortedCount * boxWidth - 12;
+                gc.setStroke(Color.web("#8b5cf6", 0.6));
+                gc.setLineWidth(1.5);
+                gc.setLineDashes(new double[]{4.0, 3.0});
+                gc.strokeRoundRect(rx1, startY - 10, rx2 - rx1, boxHeight + 20, 6, 6);
+                gc.setLineDashes(null);
+                
+                gc.setFill(Color.web("#8b5cf6"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                gc.fillText("SORTED SUB-LIST", rx1 + 6, startY - 14);
+
+                if (step == 1) {
+                    double arrowX = startX + boxWidth + boxWidth / 2.0;
+                    double arrowYHead = startY - 4;
+                    double arrowYTail = startY - 18;
+                    gc.setStroke(Color.web("#8b5cf6"));
+                    gc.setLineWidth(2.0);
+                    gc.strokeLine(arrowX, arrowYTail, arrowX, arrowYHead);
+                    gc.strokeLine(arrowX - 3, arrowYHead - 3, arrowX, arrowYHead);
+                    gc.strokeLine(arrowX + 3, arrowYHead - 3, arrowX, arrowYHead);
+                    
+                    gc.fillText("INSERT HERE", arrowX - 24, arrowYTail - 4);
+                }
+
+                for (int i = 0; i < 5; i++) {
+                    double x = insertionX[i];
+                    double y = 60;
+                    double w = 65;
+                    double h = 65;
+
+                    boolean isSorted = insertionGreen[i];
+                    Color col = isSorted ? Color.web("#10b981") : Color.web("#334155");
+
+                    if (i == 2 && !isSorted) {
+                        col = Color.web("#8b5cf6");
+                    }
+
+                    gc.setFill(col);
+                    gc.fillRoundRect(x, y, w, h, 6, 6);
+                    gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
+                    gc.strokeRoundRect(x, y, w, h, 6, 6);
+
+                    gc.setFill(Color.WHITE);
+                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+                    gc.fillText(String.valueOf((int)insertionVals[i]), x + 22, y + 38);
+                }
+
+                if (insertionCursor != -1) {
+                    double cursorX = insertionX[insertionCursor];
+                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setLineWidth(2.5);
+                    gc.strokeRoundRect(cursorX - 2, 60 - 2, 69, 69, 6, 6);
+                }
+
+                boolean dPressed = (step == 0 || step == 3);
+                boolean enterPressed = (step == 1);
+
+                drawKeyCap(gc, 200, 145, "A", false);
+                drawKeyCap(gc, 250, 145, "D", dPressed);
+                drawKeyCap(gc, 320, 145, "ENTER", enterPressed);
+
+                gc.setFill(Color.web("#94a3b8"));
+                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                if (step == 0) {
+                    gc.fillText("Press [D] to examine the active element 8 to insert.", 175, 195);
+                } else if (step == 1) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("8 < 12! Neighbor is larger. Press [ENTER] to shift 8 left.", 155, 195);
+                } else if (step == 2) {
+                    gc.fillText("8 >= 5. Left neighbor is smaller or equal. Insertion position found.", 130, 195);
+                } else if (step == 3) {
+                    gc.setFill(Color.web("#f59e0b"));
+                    gc.fillText("Press [D] to lock element 8 into sorted sub-list.", 190, 195);
+                } else if (step == 4) {
+                    gc.fillText("Active element is now 15. It is larger than 12, no shift needed.", 145, 195);
+                } else {
+                    gc.fillText("Insertion sort preview complete! Press [START GAME] to play.", 160, 195);
+                }
+
+                drawLegend(gc, "Insertion Sort", 10, 235);
             }
         };
         
