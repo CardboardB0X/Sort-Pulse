@@ -66,12 +66,12 @@ public class ChromaCascadeApp extends Application {
             new Thread(() -> {
                 try {
                     float sampleRate = 44100f;
-                    AudioFormat af = new AudioFormat(sampleRate, 16, 1, true, true);
+                    AudioFormat af = new AudioFormat(sampleRate, 16, 2, true, false);
                     SourceDataLine sdl = AudioSystem.getSourceDataLine(af);
-                    sdl.open(af);
+                    sdl.open(af, 8192);
                     sdl.start();
                     int numSamples = (int) (sampleRate * (msecs / 1000.0));
-                    byte[] buf = new byte[numSamples * 2];
+                    byte[] buf = new byte[numSamples * 4];
                     for (int i = 0; i < numSamples; i++) {
                         double angle = i / (sampleRate / hz) * 2.0 * Math.PI;
                         
@@ -86,8 +86,10 @@ public class ChromaCascadeApp extends Application {
                         }
                         
                         short sampleVal = (short) (Math.sin(angle) * 32767.0 * volume * envelope);
-                        buf[i * 2] = (byte) ((sampleVal >> 8) & 0xFF);
-                        buf[i * 2 + 1] = (byte) (sampleVal & 0xFF);
+                        buf[i * 4] = (byte) (sampleVal & 0xFF);
+                        buf[i * 4 + 1] = (byte) ((sampleVal >> 8) & 0xFF);
+                        buf[i * 4 + 2] = (byte) (sampleVal & 0xFF);
+                        buf[i * 4 + 3] = (byte) ((sampleVal >> 8) & 0xFF);
                     }
                     sdl.write(buf, 0, buf.length);
                     sdl.drain();
