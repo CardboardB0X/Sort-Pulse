@@ -24,6 +24,7 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.image.WritableImage;
+import javafx.scene.shape.ArcType;
 
 
 import java.util.Random;
@@ -2941,16 +2942,8 @@ public class ChromaCascadeApp extends Application {
         descLabel.setWrapText(true);
         descLabel.setMaxWidth(700);
 
-        // Canvas for animated sorting preview (expanded height for legend and keys)
-        Canvas canvas = new Canvas(700, 320);
-        GraphicsContext gc = canvas.getGraphicsContext2D();
-
-        // Pixelation canvas for tutorial (GameBoy mode)
-        final Canvas tutPixCanvas = isGB ? new Canvas(350, 160) : null;
-        final GraphicsContext tutPixGc = isGB ? tutPixCanvas.getGraphicsContext2D() : null;
-
-        // 3. Step-by-Step Navigation Controls
         final int[] currentStepHolder = {0};
+        final int[] detailedPageHolder = {0};
         final int maxSteps;
         if (algorithm.equalsIgnoreCase("Selection Sort")) {
             maxSteps = 11;
@@ -2962,6 +2955,96 @@ public class ChromaCascadeApp extends Application {
             maxSteps = 6;
         } else {
             maxSteps = 5;
+        }
+
+        final int maxDetailedPages;
+        if (algorithm.equalsIgnoreCase("Selection Sort") || algorithm.equalsIgnoreCase("Merge Sort")) {
+            maxDetailedPages = 6;
+        } else {
+            maxDetailedPages = 5;
+        }
+        final String[] detailedPages = new String[maxDetailedPages];
+        final String[] detailedPageTitles = new String[maxDetailedPages];
+
+        if (algorithm.equalsIgnoreCase("Selection Sort")) {
+            detailedPageTitles[0] = "Core Rules";
+            detailedPageTitles[1] = "Process - Pass 1";
+            detailedPageTitles[2] = "Process - Pass 2";
+            detailedPageTitles[3] = "Process - Pass 3";
+            detailedPageTitles[4] = "Shortcuts";
+            detailedPageTitles[5] = "Complexity & Logic";
+
+            detailedPages[0] = "OBJECTIVE & CORE RULES:\n- Goal: Find the smallest element in the unsorted suffix and shift it to the sorted prefix.\n- Concept: The array is split into a Green SORTED prefix and a Grey UNSORTED suffix.\n- The green TARGET arrow marks where the next minimum element should go.";
+            detailedPages[1] = "SORTING PROCESS - PASS 1:\n1. Scan the entire grey region to find the absolute minimum value (5).\n2. Move selection cursor to 5 and press [ENTER] to swap with target slot (index 0, containing 15).\n3. Result: [5 | 15, 8, 22, 12]";
+            detailedPages[2] = "SORTING PROCESS - PASS 2:\n1. Unsorted region is now [15, 8, 22, 12]. Scan to find next minimum (8).\n2. Move cursor to 8 and press [ENTER] to swap with target slot (index 1, containing 15).\n3. Result: [5, 8 | 15, 22, 12]";
+            detailedPages[3] = "SORTING PROCESS - PASS 3:\n1. Unsorted region is now [15, 22, 12]. Scan to find next minimum (12).\n2. Move cursor to 12 and press [ENTER] to swap with target slot (index 2, containing 15).\n3. Result: [5, 8, 12 | 22, 15]";
+            detailedPages[4] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [A]/[D]: Move Cursor Left/Right | [ENTER]: Select & Shift Element\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[5] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N^2) | Avg: O(N^2) | Worst: O(N^2) (Always scans entire unsorted suffix)\n- Space Complexity: O(1) auxiliary (In-place sorting)\n- Stability: Unstable (Swapping elements can disrupt relative order of identical keys)\n- Core Logic: Linear search for min, swap to front, advance sorted boundary.";
+        } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
+            detailedPageTitles[0] = "Core Rules";
+            detailedPageTitles[1] = "Process - Scan";
+            detailedPageTitles[2] = "Process - Pivot Place";
+            detailedPageTitles[3] = "Shortcuts";
+            detailedPageTitles[4] = "Complexity & Logic";
+
+            detailedPages[0] = "OBJECTIVE & CORE RULES:\n- Goal: Partition the active subarray around a pivot so that smaller/equal elements go left, and larger elements go right.\n- Concept: The rightmost element is the orange PIVOT. The orange TARGET arrow marks the boundary for elements <= pivot.";
+            detailedPages[1] = "SORTING PROCESS - PARTITION SCAN:\n1. Scan elements from left to right, comparing each with Pivot (10).\n2. If element <= Pivot: Press [ENTER] to swap to the TARGET slot (indicated by orange arrow).\n3. Scan 12 > 10 (skip), 18 > 10 (skip), scan 5 <= 10 -> swap 5 with index 0.";
+            detailedPages[2] = "SORTING PROCESS - PIVOT SWAP:\n1. Continue scan: 15 > 10 (skip). Scan complete.\n2. Finally, swap the Pivot (10) into the final target slot boundary (index 1, containing 18).\n3. Result: [5, 10 | 12, 15, 18]. Pivot 10 is now locked in green.";
+            detailedPages[3] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [A]/[D]: Move Cursor Left/Right | [ENTER]: Swap element <= pivot, or swap pivot\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[4] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N log N) | Avg: O(N log N) | Worst: O(N^2) (Poor pivot selection, e.g., already sorted)\n- Space Complexity: O(log N) stack depth (Recursive calls)\n- Stability: Unstable (Swapping pivot can change relative order of identical elements)\n- Core Logic: Divide & conquer. Partition elements around pivot, recursively sort partitions.";
+        } else if (algorithm.equalsIgnoreCase("Bubble Sort")) {
+            detailedPageTitles[0] = "Core Rules";
+            detailedPageTitles[1] = "Process - Skip";
+            detailedPageTitles[2] = "Process - Bubble Swap";
+            detailedPageTitles[3] = "Shortcuts";
+            detailedPageTitles[4] = "Complexity & Logic";
+
+            detailedPages[0] = "OBJECTIVE & CORE RULES:\n- Goal: Compare adjacent elements and swap if they are out of order. Repeat until sorted.\n- Concept: A flashing cursor frame spans two adjacent elements. It bubbles the largest elements to the end of the unsorted segment.";
+            detailedPages[1] = "SORTING PROCESS - CASE A (SKIP):\n1. Compare adjacent elements under the flashing frame: 8 vs 15.\n2. Since 8 <= 15, they are in correct relative order.\n3. Press [D] to skip swapping and advance frame to next pair.";
+            detailedPages[2] = "SORTING PROCESS - CASE B (SWAP):\n1. Frame is at 15 vs 5. Since 15 > 5, they are out of order.\n2. Press [ENTER] to swap them -> array becomes [8, 5, 15, 12, 10].\n3. Continue bubbling 15 to the end. It will lock green.";
+            detailedPages[3] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [D]: Skip swap & advance frame | [ENTER]: Swap the two adjacent elements\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[4] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N) (Optimized with early exit flag) | Avg: O(N^2) | Worst: O(N^2)\n- Space Complexity: O(1) auxiliary (In-place)\n- Stability: Stable (Does not swap equal elements, preserving original order)\n- Core Logic: Repeated adjacent comparison and swap passes, bubbling largest value to end.";
+        } else if (algorithm.equalsIgnoreCase("Insertion Sort")) {
+            detailedPageTitles[0] = "Core Rules";
+            detailedPageTitles[1] = "Process - Shift";
+            detailedPageTitles[2] = "Process - Lock Position";
+            detailedPageTitles[3] = "Shortcuts";
+            detailedPageTitles[4] = "Complexity & Logic";
+
+            detailedPages[0] = "OBJECTIVE & CORE RULES:\n- Goal: Insert each new element into its proper position relative to the sorted prefix on the left.\n- Concept: The sorted prefix on the left is outlined by a dashed box. The cursor highlights the active element to insert.";
+            detailedPages[1] = "SORTING PROCESS - SHIFT LEFT:\n1. Active element is 8 at index 2. Left neighbor is 12.\n2. Compare active (8) < left neighbor (12).\n3. Since 8 < 12, press [ENTER] to swap active element leftward. Array becomes: [5, 8, 12, 15, 10]";
+            detailedPages[2] = "SORTING PROCESS - POSITION FOUND:\n1. Active element 8 is now at index 1. Left neighbor is 5.\n2. Compare active (8) >= left neighbor (5). Insertion position found.\n3. Press [D] to lock prefix [5, 8, 12] in green and advance.";
+            detailedPages[3] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [ENTER]: Swap active element leftward | [D]: Finalize position & move to next item\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[4] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N) (Already sorted) | Avg: O(N^2) | Worst: O(N^2) (Reversed array)\n- Space Complexity: O(1) auxiliary (In-place)\n- Stability: Stable (Does not swap past equal elements, preserving original order)\n- Core Logic: Take active element and shift leftward until its correct position is found.";
+        } else {
+            detailedPageTitles[0] = "Core Rules";
+            detailedPageTitles[1] = "Process - Compare";
+            detailedPageTitles[2] = "Process - Merge Head";
+            detailedPageTitles[3] = "Process - Finalize";
+            detailedPageTitles[4] = "Shortcuts";
+            detailedPageTitles[5] = "Complexity & Logic";
+
+            detailedPages[0] = "OBJECTIVE & CORE RULES:\n- Goal: Merge two sorted sub-lists (Subarray A and Subarray B) into a single sorted output list.\n- Concept: Current head elements of both subarrays are marked with HEAD A and HEAD B badges. Compare them and select the smaller.";
+            detailedPages[1] = "SORTING PROCESS - COMPARE HEADS:\n1. Compare HEAD A (5) vs HEAD B (3).\n2. Since 3 < 5, select HEAD B (3) using [A]/[D] and press [ENTER] to merge it down.\n3. Output array first slot becomes 3.";
+            detailedPages[2] = "SORTING PROCESS - MERGE HEAD:\n1. New heads: HEAD A (5) vs HEAD B (10).\n2. Since 5 < 10, select HEAD A (5) and press [ENTER] to merge it down.\n3. Output array becomes [3, 5].";
+            detailedPages[3] = "SORTING PROCESS - FINALIZE:\n1. New heads: HEAD A (15) vs HEAD B (10). Merge HEAD B (10) -> Output: [3, 5, 10].\n2. Subarray B is empty. Select remaining HEAD A (15) and merge it.\n3. Result: [3, 5, 10, 15] is fully merged.";
+            detailedPages[4] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [A]/[D]: Move cursor between HEAD A and HEAD B | [ENTER]: Shift selected head to output\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[5] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N log N) | Avg: O(N log N) | Worst: O(N log N) (Guaranteed performance)\n- Space Complexity: O(N) auxiliary space (Requires buffer for merging subarrays)\n- Stability: Stable (Maintains relative order of equal elements during merge)\n- Core Logic: Divide array in half recursively, merge sorted halves back together.";
+        }
+
+        // Tab Selection Controls
+        final boolean[] showDetailedHolder = {false};
+        Button btnSimplified = new Button("SIMPLIFIED TUTORIAL");
+        Button btnDetailed = new Button("DETAILED TUTORIAL");
+
+        String activeTabStyle;
+        String inactiveTabStyle;
+        if (isGB) {
+            activeTabStyle = "-fx-background-color: " + theme.accentHex + "; -fx-text-fill: " + theme.bgHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: 8px; -fx-padding: 6px 12px; -fx-background-radius: 4px; -fx-cursor: hand; -fx-border-color: " + theme.accentHex + "; -fx-border-width: 1px; -fx-border-radius: 4px;";
+            inactiveTabStyle = "-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textMutedHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: 8px; -fx-padding: 6px 12px; -fx-background-radius: 4px; -fx-cursor: hand; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-border-radius: 4px;";
+        } else {
+            activeTabStyle = "-fx-background-color: " + accentColor + "; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 8px 16px; -fx-background-radius: 6px; -fx-cursor: hand; -fx-border-color: " + accentColor + "; -fx-border-width: 1px; -fx-border-radius: 6px;";
+            inactiveTabStyle = "-fx-background-color: #1e293b; -fx-text-fill: #94a3b8; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 8px 16px; -fx-background-radius: 6px; -fx-cursor: hand; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px;";
         }
 
         HBox navBox = new HBox(20);
@@ -2977,7 +3060,7 @@ public class ChromaCascadeApp extends Application {
         prevBtn.setStyle("-fx-background-color: " + navBtnBg + "; -fx-text-fill: " + navBtnText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + navFontSize + "; -fx-padding: 8px 20px; -fx-background-radius: 5px; -fx-cursor: hand; -fx-border-color: " + navBtnBorder + "; -fx-border-width: 1px; -fx-border-radius: 5px;");
         prevBtn.setOnMouseEntered(e -> SoundManager.playHover());
         
-        Label stepLabel = new Label(String.format("Step 1 of %d", maxSteps));
+        Label stepLabel = new Label();
         stepLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-text-fill: " + navBtnText + "; -fx-font-weight: bold; -fx-min-width: 100; -fx-alignment: center;");
         stepLabel.setAlignment(Pos.CENTER);
 
@@ -2987,19 +3070,130 @@ public class ChromaCascadeApp extends Application {
 
         navBox.getChildren().addAll(prevBtn, stepLabel, nextBtn);
 
-        prevBtn.setOnAction(e -> {
-            if (currentStepHolder[0] > 0) {
-                currentStepHolder[0]--;
+        final String fDescText = descText;
+
+        Runnable refreshTabContent = () -> {
+            boolean showDetailed = showDetailedHolder[0];
+            if (showDetailed) {
+                descLabel.setText(detailedPages[detailedPageHolder[0]]);
+                stepLabel.setText(String.format("Page %d of %d: %s", detailedPageHolder[0] + 1, maxDetailedPages, detailedPageTitles[detailedPageHolder[0]]));
+                prevBtn.setText("PREV PAGE");
+                nextBtn.setText("NEXT PAGE");
+                btnDetailed.setStyle(activeTabStyle);
+                btnSimplified.setStyle(inactiveTabStyle);
+            } else {
+                descLabel.setText(fDescText);
                 stepLabel.setText(String.format("Step %d of %d", currentStepHolder[0] + 1, maxSteps));
+                prevBtn.setText("PREV STEP");
+                nextBtn.setText("NEXT STEP");
+                btnDetailed.setStyle(inactiveTabStyle);
+                btnSimplified.setStyle(activeTabStyle);
+            }
+        };
+
+        // Initialize Tab Styles
+        refreshTabContent.run();
+
+        btnSimplified.setOnAction(e -> {
+            if (showDetailedHolder[0]) {
+                showDetailedHolder[0] = false;
+                currentStepHolder[0] = 0;
                 SoundManager.playClick();
+                refreshTabContent.run();
+            }
+        });
+
+        btnDetailed.setOnAction(e -> {
+            if (!showDetailedHolder[0]) {
+                showDetailedHolder[0] = true;
+                detailedPageHolder[0] = 0;
+                SoundManager.playClick();
+                refreshTabContent.run();
+            }
+        });
+
+        if (!isGB) {
+            btnSimplified.setOnMouseEntered(e -> {
+                if (showDetailedHolder[0]) {
+                    btnSimplified.setStyle("-fx-background-color: #334155; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 8px 16px; -fx-background-radius: 6px; -fx-cursor: hand; -fx-border-color: #475569; -fx-border-width: 1px; -fx-border-radius: 6px;");
+                }
+            });
+            btnSimplified.setOnMouseExited(e -> {
+                if (showDetailedHolder[0]) {
+                    btnSimplified.setStyle(inactiveTabStyle);
+                }
+            });
+            btnDetailed.setOnMouseEntered(e -> {
+                if (!showDetailedHolder[0]) {
+                    btnDetailed.setStyle("-fx-background-color: #334155; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 8px 16px; -fx-background-radius: 6px; -fx-cursor: hand; -fx-border-color: #475569; -fx-border-width: 1px; -fx-border-radius: 6px;");
+                }
+            });
+            btnDetailed.setOnMouseExited(e -> {
+                if (!showDetailedHolder[0]) {
+                    btnDetailed.setStyle(inactiveTabStyle);
+                }
+            });
+        }
+
+        HBox tabHeader = new HBox(15);
+        tabHeader.setAlignment(Pos.CENTER);
+        tabHeader.getChildren().addAll(btnSimplified, btnDetailed);
+
+        VBox descContainer = new VBox();
+        descContainer.setAlignment(Pos.CENTER);
+        descContainer.setPadding(new Insets(10, 15, 10, 15));
+        descContainer.setMaxWidth(700);
+        if (isGB) {
+            descContainer.setPrefHeight(90);
+            descContainer.setMinHeight(90);
+            descContainer.setMaxHeight(90);
+        } else {
+            descContainer.setPrefHeight(130);
+            descContainer.setMinHeight(130);
+            descContainer.setMaxHeight(130);
+        }
+        descContainer.setStyle("-fx-background-color: " + (isGB ? theme.panelBgHex : "#0f172a") + "; -fx-border-color: " + (isGB ? theme.borderHex : "#1e293b") + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-background-radius: 6px;");
+        descContainer.getChildren().add(descLabel);
+
+        // Canvas for animated sorting preview (expanded height for legend and keys)
+        Canvas canvas = new Canvas(700, 320);
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+
+        // Pixelation canvas for tutorial (GameBoy mode)
+        final Canvas tutPixCanvas = isGB ? new Canvas(350, 160) : null;
+        final GraphicsContext tutPixGc = isGB ? tutPixCanvas.getGraphicsContext2D() : null;
+
+        prevBtn.setOnAction(e -> {
+            boolean showDetailed = showDetailedHolder[0];
+            if (showDetailed) {
+                if (detailedPageHolder[0] > 0) {
+                    detailedPageHolder[0]--;
+                    SoundManager.playClick();
+                    refreshTabContent.run();
+                }
+            } else {
+                if (currentStepHolder[0] > 0) {
+                    currentStepHolder[0]--;
+                    SoundManager.playClick();
+                    refreshTabContent.run();
+                }
             }
         });
 
         nextBtn.setOnAction(e -> {
-            if (currentStepHolder[0] < maxSteps - 1) {
-                currentStepHolder[0]++;
-                stepLabel.setText(String.format("Step %d of %d", currentStepHolder[0] + 1, maxSteps));
-                SoundManager.playClick();
+            boolean showDetailed = showDetailedHolder[0];
+            if (showDetailed) {
+                if (detailedPageHolder[0] < maxDetailedPages - 1) {
+                    detailedPageHolder[0]++;
+                    SoundManager.playClick();
+                    refreshTabContent.run();
+                }
+            } else {
+                if (currentStepHolder[0] < maxSteps - 1) {
+                    currentStepHolder[0]++;
+                    SoundManager.playClick();
+                    refreshTabContent.run();
+                }
             }
         });
 
@@ -3040,7 +3234,7 @@ public class ChromaCascadeApp extends Application {
         backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: " + backBg + "; -fx-text-fill: " + backText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + backBorder + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;"));
 
         btnBox.getChildren().addAll(startBtn, backBtn);
-        overlay.getChildren().addAll(titleLabel, descLabel, canvas, navBox, tipBox, btnBox);
+        overlay.getChildren().addAll(titleLabel, tabHeader, descContainer, canvas, navBox, tipBox, btnBox);
 
         root.getChildren().add(overlay);
         overlay.requestFocus();
@@ -3092,17 +3286,21 @@ public class ChromaCascadeApp extends Application {
                 gc.setLineWidth(1.0);
                 gc.strokeRect(0, 0, canvas.getWidth(), canvas.getHeight());
                 
-                int step = currentStepHolder[0];
-                if (algorithm.equalsIgnoreCase("Selection Sort")) {
-                    updateAndDrawSelection(gc, step);
-                } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
-                    updateAndDrawQuick(gc, step);
-                } else if (algorithm.equalsIgnoreCase("Bubble Sort")) {
-                    updateAndDrawBubble(gc, step);
-                } else if (algorithm.equalsIgnoreCase("Insertion Sort")) {
-                    updateAndDrawInsertion(gc, step);
+                if (showDetailedHolder[0]) {
+                    drawDetailedVisualGuide(gc, algorithm, detailedPageHolder[0]);
                 } else {
-                    updateAndDrawMerge(gc, step);
+                    int step = currentStepHolder[0];
+                    if (algorithm.equalsIgnoreCase("Selection Sort")) {
+                        updateAndDrawSelection(gc, step);
+                    } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
+                        updateAndDrawQuick(gc, step);
+                    } else if (algorithm.equalsIgnoreCase("Bubble Sort")) {
+                        updateAndDrawBubble(gc, step);
+                    } else if (algorithm.equalsIgnoreCase("Insertion Sort")) {
+                        updateAndDrawInsertion(gc, step);
+                    } else {
+                        updateAndDrawMerge(gc, step);
+                    }
                 }
             }
 
@@ -4061,6 +4259,1108 @@ public class ChromaCascadeApp extends Application {
 
                 drawLegend(gc, "Insertion Sort", 10, 235);
             }
+
+            private void drawDetailedShortcutsPage(GraphicsContext gc, String algo) {
+                gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                gc.fillText("KEYBOARD CONTROLS REFERENCE MAP", 15, 30);
+
+                double y = 80;
+                if (algo.equalsIgnoreCase("Selection Sort") || algo.equalsIgnoreCase("Quick Sort") || algo.equalsIgnoreCase("Merge Sort")) {
+                    drawKeyCap(gc, 80, y, "A", false);
+                    drawKeyCap(gc, 140, y, "D", false);
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 12, isGB));
+                    gc.fillText("A / D: Move Selection Cursor Left/Right", 220, y + 16);
+                } else if (algo.equalsIgnoreCase("Bubble Sort")) {
+                    drawKeyCap(gc, 110, y, "D", false);
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 12, isGB));
+                    gc.fillText("D: Step Forward / Skip Swap (elements in order)", 180, y + 16);
+                } else { // Insertion Sort
+                    drawKeyCap(gc, 110, y, "D", false);
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 12, isGB));
+                    gc.fillText("D: Finalize Position & Advance (element is in position)", 180, y + 16);
+                }
+
+                drawKeyCap(gc, 80, y + 40, "ENTER", false);
+                gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 12, isGB));
+                if (algo.equalsIgnoreCase("Selection Sort")) {
+                    gc.fillText("ENTER: Confirm & Shift Minimum element to Target Slot", 180, y + 56);
+                } else if (algo.equalsIgnoreCase("Quick Sort")) {
+                    gc.fillText("ENTER: Shift element <= Pivot to Target, or Shift Pivot", 180, y + 56);
+                } else if (algo.equalsIgnoreCase("Bubble Sort")) {
+                    gc.fillText("ENTER: Swap out-of-order adjacent elements (Left > Right)", 180, y + 56);
+                } else if (algo.equalsIgnoreCase("Insertion Sort")) {
+                    gc.fillText("ENTER: Swap active element leftward (if smaller than left)", 180, y + 56);
+                } else { // Merge
+                    gc.fillText("ENTER: Shift selected Subarray Head down to Output Slot", 180, y + 56);
+                }
+
+                drawKeyCap(gc, 80, y + 80, "R", false);
+                gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 12, isGB));
+                gc.fillText("R: Restart Current Puzzle Wave immediately (Resets progress)", 140, y + 96);
+
+                drawKeyCap(gc, 80, y + 120, "ESC", false);
+                gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 12, isGB));
+                gc.fillText("ESC: Pause / Return to Main Menu", 150, y + 136);
+
+                drawLegend(gc, algo, 10, 235);
+            }
+
+            private void drawSelectionDetailed(GraphicsContext gc, int page) {
+                if (page == 0) { // Page 1: Core Logic
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("SELECTION SORT: SPLIT-ARRAY LOGIC", 15, 30);
+
+                    double y = 80;
+                    double w = 65;
+                    double h = 65;
+                    
+                    double[] vals = {3, 5, 15, 8, 22};
+                    for (int i = 0; i < 2; i++) {
+                        double x = 100 + i * 80;
+                        gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[i]), x + 22, y + 38);
+                    }
+                    
+                    for (int i = 2; i < 5; i++) {
+                        double x = 100 + i * 80;
+                        gc.setFill(isGB ? theme.unsorted : Color.web("#334155"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[i]), x + 22, y + 38);
+                    }
+
+                    gc.setStroke(isGB ? theme.textMuted : Color.web("#475569"));
+                    gc.setLineWidth(1.5);
+                    gc.setLineDashes(new double[]{4.0, 3.0});
+                    gc.strokeRoundRect(255, y - 10, 245, h + 20, 6, 6);
+                    gc.setLineDashes(null);
+
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
+                    gc.fillText("SORTED REGION (LOCKED)", 105, y - 15);
+                    gc.fillText("UNSORTED REGION (SEARCH)", 265, y - 15);
+
+                    double arrowX = 100 + 2 * 80 + w / 2.0;
+                    gc.setStroke(isGB ? theme.sorted : Color.web("#10b981"));
+                    gc.setLineWidth(2.0);
+                    gc.strokeLine(arrowX, y - 8, arrowX, y - 4);
+                    gc.strokeLine(arrowX - 3, y - 4, arrowX, y - 4);
+                    gc.strokeLine(arrowX + 3, y - 4, arrowX, y - 4);
+
+                    gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
+                    gc.fillText("TARGET SLOT", arrowX - 25, y - 28);
+
+                    double minX = 100 + 3 * 80;
+                    gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
+                    gc.setLineWidth(2.5);
+                    gc.strokeRoundRect(minX - 2, y - 2, w + 4, h + 4, 6, 6);
+                    
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
+                    gc.fillText("MINIMUM VALUE FOUND", minX - 15, y + 80);
+
+                    drawLegend(gc, "Selection Sort", 10, 235);
+                } else if (page == 1) { // Page 2: Sorting Process - Pass 1
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("SELECTION SORT: PROCESS (PASS 1)", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color sortedCol = isGB ? theme.sorted : Color.web("#10b981");
+                    Color minCol = isGB ? theme.accent : Color.web("#f59e0b");
+                    Color targetCol = isGB ? theme.textMuted : Color.web("#06b6d4");
+
+                    double[] vals1 = {15, 8, 22, 5, 12};
+                    Color[] cols1 = {unsortedCol, unsortedCol, unsortedCol, minCol, unsortedCol};
+                    drawMiniArray(gc, 50, 75, vals1, cols1, 0, targetCol, "1. Locate Absolute Minimum (5) & Swap with Target (15)");
+
+                    double blockW = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+                    double startX = 50 + 3 * (blockW + gap) + blockW/2.0;
+                    double endX = 50 + 0 * (blockW + gap) + blockW/2.0;
+                    drawSwapArrow(gc, startX, 75, endX, 75, isGB ? theme.accent : Color.web("#f59e0b"));
+
+                    double[] vals2 = {5, 8, 22, 15, 12};
+                    Color[] cols2 = {sortedCol, unsortedCol, unsortedCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 175, vals2, cols2, 1, targetCol, "Result: 5 is Locked. Target Slot Advances to Index 1");
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("PASS 1 DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Range scanned: index 0 to 4.", 420, textY);
+                    gc.fillText("- Min found: 5 at index 3.", 420, textY + spacingY);
+                    gc.fillText("- Swap with target index 0 (15).", 420, textY + 2 * spacingY);
+                    gc.fillText("- Index 0 is now sorted (Green).", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Selection Sort", 10, 235);
+                } else if (page == 2) { // Page 3: Sorting Process - Pass 2
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("SELECTION SORT: PROCESS (PASS 2)", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color sortedCol = isGB ? theme.sorted : Color.web("#10b981");
+                    Color minCol = isGB ? theme.accent : Color.web("#f59e0b");
+                    Color targetCol = isGB ? theme.textMuted : Color.web("#06b6d4");
+
+                    double[] vals1 = {5, 15, 8, 22, 12};
+                    Color[] cols1 = {sortedCol, unsortedCol, minCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 75, vals1, cols1, 1, targetCol, "2. Scan Unsorted Suffix: Find Minimum (8) & Swap with Target (15)");
+
+                    double blockW = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+                    double startX = 50 + 2 * (blockW + gap) + blockW/2.0;
+                    double endX = 50 + 1 * (blockW + gap) + blockW/2.0;
+                    drawSwapArrow(gc, startX, 75, endX, 75, isGB ? theme.accent : Color.web("#f59e0b"));
+
+                    double[] vals2 = {5, 8, 15, 22, 12};
+                    Color[] cols2 = {sortedCol, sortedCol, unsortedCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 175, vals2, cols2, 2, targetCol, "Result: 8 is Locked. Target Slot Advances to Index 2");
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("PASS 2 DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Range scanned: index 1 to 4.", 420, textY);
+                    gc.fillText("- Min found: 8 at index 2.", 420, textY + spacingY);
+                    gc.fillText("- Swap with target index 1 (15).", 420, textY + 2 * spacingY);
+                    gc.fillText("- Prefix [5, 8] is sorted.", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Selection Sort", 10, 235);
+                } else if (page == 3) { // Page 4: Sorting Process - Pass 3
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("SELECTION SORT: PROCESS (PASS 3)", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color sortedCol = isGB ? theme.sorted : Color.web("#10b981");
+                    Color minCol = isGB ? theme.accent : Color.web("#f59e0b");
+                    Color targetCol = isGB ? theme.textMuted : Color.web("#06b6d4");
+
+                    double[] vals1 = {5, 8, 15, 22, 12};
+                    Color[] cols1 = {sortedCol, sortedCol, unsortedCol, unsortedCol, minCol};
+                    drawMiniArray(gc, 50, 75, vals1, cols1, 2, targetCol, "3. Scan Unsorted Suffix: Find Minimum (12) & Swap with Target (15)");
+
+                    double blockW = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+                    double startX = 50 + 4 * (blockW + gap) + blockW/2.0;
+                    double endX = 50 + 2 * (blockW + gap) + blockW/2.0;
+                    drawSwapArrow(gc, startX, 75, endX, 75, isGB ? theme.accent : Color.web("#f59e0b"));
+
+                    double[] vals2 = {5, 8, 12, 22, 15};
+                    Color[] cols2 = {sortedCol, sortedCol, sortedCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 175, vals2, cols2, 3, targetCol, "Result: 12 is Locked. Target Slot Advances to Index 3");
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("PASS 3 DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Range scanned: index 2 to 4.", 420, textY);
+                    gc.fillText("- Min found: 12 at index 4.", 420, textY + spacingY);
+                    gc.fillText("- Swap with target index 2 (15).", 420, textY + 2 * spacingY);
+                    gc.fillText("- Prefix [5, 8, 12] is sorted.", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Selection Sort", 10, 235);
+                } else if (page == 4) {
+                    drawDetailedShortcutsPage(gc, "Selection Sort");
+                } else {
+                    String[][] selectionTable = {
+                        {"Best-Case Time", "O(N^2)"},
+                        {"Average-Case Time", "O(N^2)"},
+                        {"Worst-Case Time", "O(N^2)"},
+                        {"Space Complexity", "O(1) Auxiliary"},
+                        {"Stability", "Unstable"}
+                    };
+                    String[] selectionCode = {
+                        "for i = 0 to n-1:",
+                        "  min_idx = i",
+                        "  for j = i+1 to n:",
+                        "    if arr[j] < arr[min_idx]:",
+                        "      min_idx = j",
+                        "  swap(arr[i], arr[min_idx])"
+                    };
+                    drawComplexityPage(gc, "SELECTION SORT: COMPLEXITY & CODE LOGIC", selectionTable, selectionCode, "Selection Sort");
+                }
+            }
+
+            private void drawQuickDetailed(GraphicsContext gc, int page) {
+                if (page == 0) { // Page 1: Core Logic
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("QUICK SORT: PARTITIONING & PIVOT LOGIC", 15, 30);
+
+                    double y = 80;
+                    double w = 65;
+                    double h = 65;
+                    
+                    double[] vals = {5, 8, 10, 18, 15};
+                    for (int i = 0; i < 2; i++) {
+                        double x = 100 + i * 80;
+                        gc.setFill(isGB ? theme.sorted : Color.web("#06b6d4"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[i]), x + 22, y + 38);
+                    }
+                    
+                    {
+                        double x = 100 + 2 * 80;
+                        gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[2]), x + 22, y + 38);
+
+                        double badgeW = 38;
+                        double badgeX = x + (w - badgeW) / 2.0;
+                        gc.setFill(isGB ? theme.accent : Color.web("#ea580c"));
+                        gc.fillRoundRect(badgeX, y - 14, badgeW, 11, 2, 2);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 7, isGB));
+                        gc.fillText("PIVOT", badgeX + 6, y - 6);
+                    }
+
+                    for (int i = 3; i < 5; i++) {
+                        double x = 100 + i * 80;
+                        gc.setFill(isGB ? theme.unsorted : Color.web("#334155"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[i]), x + 22, y + 38);
+                    }
+
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
+                    gc.fillText("ELEMENTS <= PIVOT", 100, y + 80);
+                    gc.fillText("PIVOT ELEMENT", 260, y + 80);
+                    gc.fillText("ELEMENTS > PIVOT", 420, y + 80);
+
+                    gc.setStroke(isGB ? theme.textMuted : Color.web("#475569"));
+                    gc.setLineWidth(1.5);
+                    gc.setLineDashes(new double[]{4.0, 3.0});
+                    gc.strokeRoundRect(90, y - 20, 410, h + 110, 6, 6);
+                    gc.setLineDashes(null);
+
+                    drawLegend(gc, "Quick Sort", 10, 235);
+                } else if (page == 1) { // Page 2: Process - Scan
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("QUICK SORT: PARTITION SCAN PROCESS", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color pivotCol = isGB ? theme.accent : Color.web("#ea580c");
+                    Color activeCol = isGB ? theme.accent : Color.web("#3b82f6");
+                    Color targetCol = isGB ? theme.textMuted : Color.web("#f59e0b");
+
+                    double[] vals1 = {12, 18, 5, 15, 10};
+                    Color[] cols1 = {unsortedCol, unsortedCol, activeCol, unsortedCol, pivotCol};
+                    drawMiniArray(gc, 50, 75, vals1, cols1, 0, targetCol, "1. Scan & Compare: 5 <= 10 (Pivot) -> Swap to Target Slot (12)");
+
+                    double blockW = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+                    double startX = 50 + 2 * (blockW + gap) + blockW/2.0;
+                    double endX = 50 + 0 * (blockW + gap) + blockW/2.0;
+                    drawSwapArrow(gc, startX, 75, endX, 75, isGB ? theme.accent : Color.web("#3b82f6"));
+
+                    double[] vals2 = {5, 18, 12, 15, 10};
+                    Color[] cols2 = {unsortedCol, unsortedCol, unsortedCol, unsortedCol, pivotCol};
+                    drawMiniArray(gc, 50, 175, vals2, cols2, 1, targetCol, "Result: 5 is Swapped. Target Slot Boundary Shifts to Index 1");
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("SCAN DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Pivot is 10 (Orange).", 420, textY);
+                    gc.fillText("- Active cursor scans index 2 (5).", 420, textY + spacingY);
+                    gc.fillText("- Since 5 <= 10, swap to target index 0.", 420, textY + 2 * spacingY);
+                    gc.fillText("- Target slot advances to index 1.", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Quick Sort", 10, 235);
+                } else if (page == 2) { // Page 3: Process - Pivot Place
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("QUICK SORT: PIVOT PLACEMENT PROCESS", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color sortedCol = isGB ? theme.sorted : Color.web("#10b981");
+                    Color pivotCol = isGB ? theme.accent : Color.web("#ea580c");
+                    Color targetCol = isGB ? theme.textMuted : Color.web("#f59e0b");
+
+                    double[] vals1 = {5, 18, 12, 15, 10};
+                    Color[] cols1 = {unsortedCol, unsortedCol, unsortedCol, unsortedCol, pivotCol};
+                    drawMiniArray(gc, 50, 75, vals1, cols1, 1, targetCol, "2. Scan Finished. Swap Pivot (10) to target slot (18)");
+
+                    double blockW = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+                    double startX = 50 + 4 * (blockW + gap) + blockW/2.0;
+                    double endX = 50 + 1 * (blockW + gap) + blockW/2.0;
+                    drawSwapArrow(gc, startX, 75, endX, 75, isGB ? theme.accent : Color.web("#ea580c"));
+
+                    double[] vals2 = {5, 10, 12, 15, 18};
+                    Color[] cols2 = {unsortedCol, sortedCol, unsortedCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 175, vals2, cols2, 2, targetCol, "Result: Pivot (10) is in final position & turns Green");
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("PIVOT DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- All elements compared.", 420, textY);
+                    gc.fillText("- Swap pivot with target index 1.", 420, textY + spacingY);
+                    gc.fillText("- Pivot 10 is now in final position.", 420, textY + 2 * spacingY);
+                    gc.fillText("- Subarrays are recursively sorted.", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Quick Sort", 10, 235);
+                } else if (page == 3) {
+                    drawDetailedShortcutsPage(gc, "Quick Sort");
+                } else {
+                    String[][] quickTable = {
+                        {"Best-Case Time", "O(N log N)"},
+                        {"Average-Case Time", "O(N log N)"},
+                        {"Worst-Case Time", "O(N^2)"},
+                        {"Space Complexity", "O(log N) Stack"},
+                        {"Stability", "Unstable"}
+                    };
+                    String[] quickCode = {
+                        "function quickSort(arr, low, high):",
+                        "  if low < high:",
+                        "    pi = partition(arr, low, high)",
+                        "    quickSort(arr, low, pi-1)",
+                        "    quickSort(arr, pi+1, high)"
+                    };
+                    drawComplexityPage(gc, "QUICK SORT: COMPLEXITY & CODE LOGIC", quickTable, quickCode, "Quick Sort");
+                }
+            }
+
+            private void drawBubbleDetailed(GraphicsContext gc, int page) {
+                if (page == 0) { // Page 1: Core Logic
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("BUBBLE SORT: THE BUBBLING CONCEPT", 15, 30);
+
+                    double y = 80;
+                    double w = 65;
+                    double h = 65;
+                    
+                    double[] vals = {5, 8, 12, 10, 15};
+                    for (int i = 0; i < 4; i++) {
+                        double x = 100 + i * 80;
+                        gc.setFill(isGB ? theme.unsorted : Color.web("#334155"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[i]), x + 22, y + 38);
+                    }
+                    
+                    {
+                        double x = 100 + 4 * 80;
+                        gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[4]), x + 22, y + 38);
+                    }
+
+                    gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
+                    gc.setLineWidth(2.0);
+                    gc.strokeArc(100 + w/2.0, y + h/2.0 - 10, 160, 40, 0, 180, ArcType.OPEN);
+                    
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
+                    gc.fillText("LARGER VALUE BUBBLES RIGHT", 180, y - 20);
+
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    gc.fillText("UNSORTED ELEMENTS", 100, y + 85);
+                    gc.fillText("BUBBLED & LOCKED", 420, y + 85);
+
+                    drawLegend(gc, "Bubble Sort", 10, 235);
+                } else if (page == 1) { // Page 2: Process - Case A: Skip
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("BUBBLE SORT: PROCESS - CASE A (SKIP)", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color activeBorderCol = isGB ? theme.accent : Color.web("#3b82f6");
+
+                    double[] vals1 = {8, 15, 5, 12, 10};
+                    Color[] cols1 = {unsortedCol, unsortedCol, unsortedCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 75, vals1, cols1, -1, null, "1. Compare: 8 <= 15 -> Elements in correct relative order");
+                    
+                    double blockW = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+                    gc.setStroke(activeBorderCol);
+                    gc.setLineWidth(2.0);
+                    gc.strokeRoundRect(50 - 2, 75 - 2, 2 * blockW + gap + 4, blockW + 4, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                    drawMiniArray(gc, 50, 175, vals1, cols1, -1, null, "Result: Skip Swap by pressing [D]. Frame advances to index 1 and 2");
+                    gc.setStroke(activeBorderCol);
+                    gc.strokeRoundRect(50 + (blockW + gap) - 2, 175 - 2, 2 * blockW + gap + 4, blockW + 4, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("CASE A DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Compare elements 8 and 15.", 420, textY);
+                    gc.fillText("- Left value <= Right value.", 420, textY + spacingY);
+                    gc.fillText("- Correct order. No swap needed.", 420, textY + 2 * spacingY);
+                    gc.fillText("- Press [D] to advance cursor frame.", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Bubble Sort", 10, 235);
+                } else if (page == 2) { // Page 3: Process - Case B: Swap
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("BUBBLE SORT: PROCESS - CASE B (SWAP)", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color activeBorderCol = isGB ? theme.accent : Color.web("#3b82f6");
+                    Color swapBorderCol = isGB ? theme.accent : Color.web("#ef4444");
+
+                    double[] vals1 = {8, 15, 5, 12, 10};
+                    Color[] cols1 = {unsortedCol, unsortedCol, unsortedCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 75, vals1, cols1, -1, null, "2. Compare: 15 > 5 -> Elements out of order!");
+                    
+                    double blockW = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+                    gc.setStroke(swapBorderCol);
+                    gc.setLineWidth(2.0);
+                    gc.strokeRoundRect(50 + (blockW + gap) - 2, 75 - 2, 2 * blockW + gap + 4, blockW + 4, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                    double startX = 50 + 1 * (blockW + gap) + blockW/2.0;
+                    double endX = 50 + 2 * (blockW + gap) + blockW/2.0;
+                    drawSwapArrow(gc, startX, 75, endX, 75, swapBorderCol);
+
+                    double[] vals2 = {8, 5, 15, 12, 10};
+                    drawMiniArray(gc, 50, 175, vals2, cols1, -1, null, "Result: Swap elements with [ENTER]. Frame advances to index 2 and 3");
+                    gc.setStroke(activeBorderCol);
+                    gc.strokeRoundRect(50 + 2 * (blockW + gap) - 2, 175 - 2, 2 * blockW + gap + 4, blockW + 4, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("CASE B DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Compare elements 15 and 5.", 420, textY);
+                    gc.fillText("- Left value > Right value.", 420, textY + spacingY);
+                    gc.fillText("- Out of order! Swap required.", 420, textY + 2 * spacingY);
+                    gc.fillText("- Press [ENTER] to execute swap.", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Bubble Sort", 10, 235);
+                } else if (page == 3) {
+                    drawDetailedShortcutsPage(gc, "Bubble Sort");
+                } else {
+                    String[][] bubbleTable = {
+                        {"Best-Case Time", "O(N) (Optimized)"},
+                        {"Average-Case Time", "O(N^2)"},
+                        {"Worst-Case Time", "O(N^2)"},
+                        {"Space Complexity", "O(1) Auxiliary"},
+                        {"Stability", "Stable"}
+                    };
+                    String[] bubbleCode = {
+                        "for i = 0 to n-1:",
+                        "  for j = 0 to n-i-2:",
+                        "    if arr[j] > arr[j+1]:",
+                        "      swap(arr[j], arr[j+1])"
+                    };
+                    drawComplexityPage(gc, "BUBBLE SORT: COMPLEXITY & CODE LOGIC", bubbleTable, bubbleCode, "Bubble Sort");
+                }
+            }
+
+            private void drawInsertionDetailed(GraphicsContext gc, int page) {
+                if (page == 0) { // Page 1: Core Logic
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("INSERTION SORT: SORTED SUB-LIST INSERTION", 15, 30);
+
+                    double y = 80;
+                    double w = 65;
+                    double h = 65;
+                    
+                    double[] vals = {5, 12, 8, 15, 10};
+                    for (int i = 0; i < 2; i++) {
+                        double x = 100 + i * 80;
+                        gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[i]), x + 22, y + 38);
+                    }
+                    
+                    {
+                        double x = 100 + 2 * 80;
+                        gc.setFill(isGB ? theme.accent : Color.web("#8b5cf6"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[2]), x + 22, y + 38);
+                    }
+
+                    for (int i = 3; i < 5; i++) {
+                        double x = 100 + i * 80;
+                        gc.setFill(isGB ? theme.unsorted : Color.web("#334155"));
+                        gc.fillRoundRect(x, y, w, h, 6, 6);
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
+                        gc.fillText(String.valueOf((int)vals[i]), x + 22, y + 38);
+                    }
+
+                    gc.setStroke(isGB ? theme.accent : Color.web("#8b5cf6"));
+                    gc.setLineWidth(1.5);
+                    gc.setLineDashes(new double[]{4.0, 3.0});
+                    gc.strokeRoundRect(90, y - 10, 155, h + 20, 6, 6);
+                    gc.setLineDashes(null);
+
+                    gc.setFill(isGB ? theme.accent : Color.web("#8b5cf6"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
+                    gc.fillText("SORTED SUB-LIST", 100, y - 15);
+                    
+                    gc.setStroke(isGB ? theme.accent : Color.web("#8b5cf6"));
+                    gc.setLineWidth(2.0);
+                    gc.strokeLine(260, y + 30, 210, y + 30);
+                    gc.strokeLine(210, y + 30, 215, y + 26);
+                    gc.strokeLine(210, y + 30, 215, y + 34);
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.fillText("INSERT ACTIVE ELEMENT", 255, y - 15);
+
+                    drawLegend(gc, "Insertion Sort", 10, 235);
+                } else if (page == 1) { // Page 2: Process - Shift Left
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("INSERTION SORT: PROCESS - SHIFT LEFT", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color sortedCol = isGB ? theme.sorted : Color.web("#10b981");
+                    Color activeCol = isGB ? theme.accent : Color.web("#8b5cf6");
+
+                    double[] vals1 = {5, 12, 8, 15, 10};
+                    Color[] cols1 = {sortedCol, sortedCol, activeCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 75, vals1, cols1, -1, null, "1. Active (8) < Left (12) -> Swap Leftward with [ENTER]");
+
+                    double blockW = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+                    double startX = 50 + 2 * (blockW + gap) + blockW/2.0;
+                    double endX = 50 + 1 * (blockW + gap) + blockW/2.0;
+                    drawSwapArrow(gc, startX, 75, endX, 75, activeCol);
+
+                    double[] vals2 = {5, 8, 12, 15, 10};
+                    Color[] cols2 = {sortedCol, activeCol, sortedCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 175, vals2, cols2, -1, null, "Result: Swapped. Active Element is now at index 1");
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("SHIFT DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Prefix [5, 12] is sorted.", 420, textY);
+                    gc.fillText("- Compare active 8 with left 12.", 420, textY + spacingY);
+                    gc.fillText("- Since 8 < 12, press [ENTER] to shift.", 420, textY + 2 * spacingY);
+                    gc.fillText("- Array is now [5, 8, 12, 15, 10].", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Insertion Sort", 10, 235);
+                } else if (page == 2) { // Page 3: Process - Position Found
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("INSERTION SORT: PROCESS - POSITION FOUND", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color sortedCol = isGB ? theme.sorted : Color.web("#10b981");
+                    Color activeCol = isGB ? theme.accent : Color.web("#8b5cf6");
+
+                    double[] vals1 = {5, 8, 12, 15, 10};
+                    Color[] cols1 = {sortedCol, activeCol, sortedCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 75, vals1, cols1, -1, null, "2. Compare Active (8) with Left Neighbor (5)");
+
+                    double[] vals2 = {5, 8, 12, 15, 10};
+                    Color[] cols2 = {sortedCol, sortedCol, sortedCol, unsortedCol, unsortedCol};
+                    drawMiniArray(gc, 50, 175, vals2, cols2, -1, null, "Result: 8 >= 5. Insertion slot found. Lock prefix with [D]");
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("LOCKING DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Compare active 8 with left 5.", 420, textY);
+                    gc.fillText("- Since 8 >= 5, no more shifts.", 420, textY + spacingY);
+                    gc.fillText("- Press [D] to lock prefix green.", 420, textY + 2 * spacingY);
+                    gc.fillText("- Prefix [5, 8, 12] becomes green.", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Insertion Sort", 10, 235);
+                } else if (page == 3) {
+                    drawDetailedShortcutsPage(gc, "Insertion Sort");
+                } else {
+                    String[][] insertionTable = {
+                        {"Best-Case Time", "O(N)"},
+                        {"Average-Case Time", "O(N^2)"},
+                        {"Worst-Case Time", "O(N^2)"},
+                        {"Space Complexity", "O(1) Auxiliary"},
+                        {"Stability", "Stable"}
+                    };
+                    String[] insertionCode = {
+                        "for i = 1 to n:",
+                        "  key = arr[i]",
+                        "  j = i - 1",
+                        "  while j >= 0 and arr[j] > key:",
+                        "    arr[j+1] = arr[j]",
+                        "    j--",
+                        "  arr[j+1] = key"
+                    };
+                    drawComplexityPage(gc, "INSERTION SORT: COMPLEXITY & CODE LOGIC", insertionTable, insertionCode, "Insertion Sort");
+                }
+            }
+
+            private void drawMergeDetailed(GraphicsContext gc, int page) {
+                if (page == 0) { // Page 1: Core Logic
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("MERGE SORT: SUBARRAY MERGING LOGIC", 15, 30);
+
+                    double y = 80;
+                    double w = 50;
+                    double h = 45;
+
+                    gc.setFill(isGB ? theme.unsorted : Color.web("#334155"));
+                    gc.fillRoundRect(120, y, w, h, 4, 4);
+                    gc.fillRoundRect(180, y, w, h, 4, 4);
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("5", 140, y + 26);
+                    gc.fillText("15", 196, y + 26);
+
+                    gc.setFill(isGB ? theme.unsorted : Color.web("#334155"));
+                    gc.fillRoundRect(340, y, w, h, 4, 4);
+                    gc.fillRoundRect(400, y, w, h, 4, 4);
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.fillText("3", 360, y + 26);
+                    gc.fillText("10", 416, y + 26);
+
+                    gc.setFill(isGB ? theme.bg : Color.web("#0f172a"));
+                    gc.setStroke(isGB ? theme.border : Color.web("#1e293b"));
+                    gc.setLineWidth(1.0);
+                    gc.strokeRoundRect(170, y + 70, 250, h + 10, 4, 4);
+
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
+                    gc.fillText("SUBARRAY A (SORTED)", 115, y - 10);
+                    gc.fillText("SUBARRAY B (SORTED)", 335, y - 10);
+                    gc.fillText("MERGED OUTPUT SLOT", 175, y + 65);
+
+                    gc.setFill(isGB ? theme.sorted : Color.web("#06b6d4"));
+                    gc.fillRoundRect(125, y - 24, 40, 10, 2, 2);
+                    gc.fillRoundRect(345, y - 24, 40, 10, 2, 2);
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 6, isGB));
+                    gc.fillText("HEAD A", 129, y - 17);
+                    gc.fillText("HEAD B", 349, y - 17);
+
+                    drawLegend(gc, "Merge Sort", 10, 235);
+                } else if (page == 1) { // Page 2: Process - Compare Heads
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("MERGE SORT: PROCESS - COMPARE HEADS", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color sortedCol = isGB ? theme.sorted : Color.web("#10b981");
+                    Color headCol = isGB ? theme.accent : Color.web("#06b6d4");
+
+                    double[] subA = {5, 15};
+                    Color[] colsA = {headCol, unsortedCol};
+                    drawMiniArray(gc, 50, 75, subA, colsA, 0, headCol, "Subarray A");
+
+                    double[] subB = {3, 10};
+                    Color[] colsB = {headCol, unsortedCol};
+                    drawMiniArray(gc, 230, 75, subB, colsB, 0, headCol, "Subarray B");
+
+                    double blockW = isGB ? 40 : 48;
+                    double blockH = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#cbd5e1"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 11, isGB));
+                    gc.fillText("Merged Output Array", 100, 165);
+
+                    for (int i = 0; i < 4; i++) {
+                        double bx = 100 + i * (blockW + gap);
+                        if (i == 0) {
+                            gc.setFill(sortedCol);
+                            gc.fillRoundRect(bx, 175, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                            gc.setStroke(isGB ? theme.border : sortedCol.deriveColor(0, 1, 1.2, 1));
+                            gc.strokeRoundRect(bx, 175, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                            gc.setFill(isGB ? theme.bg : Color.WHITE);
+                            gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 9 : 14, isGB));
+                            gc.fillText("3", bx + (isGB ? 14 : 20), 175 + (isGB ? 25 : 30));
+                        } else {
+                            gc.setFill(isGB ? theme.panelBg : Color.web("#1e293b"));
+                            gc.fillRoundRect(bx, 175, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                            gc.setStroke(isGB ? theme.border : Color.web("#334155"));
+                            gc.setLineWidth(1.0);
+                            gc.setLineDashes(new double[]{4.0, 3.0});
+                            gc.strokeRoundRect(bx, 175, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                            gc.setLineDashes(null);
+                        }
+                    }
+
+                    double startX = 230 + 0 * (blockW + gap) + blockW/2.0;
+                    double endX = 100 + 0 * (blockW + gap) + blockW/2.0;
+                    drawArrow(gc, startX, 75 + blockH, endX, 175, isGB ? theme.accent : Color.web("#06b6d4"));
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("STEP 1 DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Compare HEAD A (5) vs HEAD B (3).", 420, textY);
+                    gc.fillText("- Since 3 < 5, select HEAD B.", 420, textY + spacingY);
+                    gc.fillText("- Press [ENTER] to merge it down.", 420, textY + 2 * spacingY);
+                    gc.fillText("- First output slot gets 3.", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Merge Sort", 10, 235);
+                } else if (page == 2) { // Page 3: Process - Merge Head
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("MERGE SORT: PROCESS - MERGE HEAD", 15, 30);
+
+                    Color unsortedCol = isGB ? theme.unsorted : Color.web("#334155");
+                    Color sortedCol = isGB ? theme.sorted : Color.web("#10b981");
+                    Color headCol = isGB ? theme.accent : Color.web("#06b6d4");
+
+                    double[] subA = {5, 15};
+                    Color[] colsA = {headCol, unsortedCol};
+                    drawMiniArray(gc, 50, 75, subA, colsA, 0, headCol, "Subarray A");
+
+                    double[] subB = {10, 0};
+                    Color[] colsB = {headCol, unsortedCol};
+                    // Manually draw Subarray B to show it has only 1 element left
+                    double blockW = isGB ? 40 : 48;
+                    double blockH = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+
+                    gc.setFill(isGB ? theme.text : Color.web("#cbd5e1"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 11, isGB));
+                    gc.fillText("Subarray B", 230, 75 - 8);
+
+                    for (int i = 0; i < 2; i++) {
+                        double bx = 230 + i * (blockW + gap);
+                        if (i == 0) {
+                            gc.setFill(headCol);
+                            gc.fillRoundRect(bx, 75, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                            gc.setStroke(isGB ? theme.accent : Color.web("#06b6d4"));
+                            gc.strokeRoundRect(bx - 1.5, 75 - 1.5, blockW + 3, blockH + 3, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                            gc.setFill(isGB ? theme.bg : Color.WHITE);
+                            gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 9 : 14, isGB));
+                            gc.fillText("10", bx + (isGB ? 8 : 14), 75 + (isGB ? 25 : 30));
+                        } else {
+                            gc.setFill(isGB ? theme.panelBg : Color.web("#1e293b"));
+                            gc.fillRoundRect(bx, 75, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                            gc.setStroke(isGB ? theme.border : Color.web("#334155"));
+                            gc.setLineWidth(1.0);
+                            gc.setLineDashes(new double[]{4.0, 3.0});
+                            gc.strokeRoundRect(bx, 75, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                            gc.setLineDashes(null);
+                        }
+                    }
+
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#cbd5e1"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 11, isGB));
+                    gc.fillText("Merged Output Array", 100, 165);
+
+                    for (int i = 0; i < 4; i++) {
+                        double bx = 100 + i * (blockW + gap);
+                        if (i < 2) {
+                            gc.setFill(sortedCol);
+                            gc.fillRoundRect(bx, 175, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                            gc.setStroke(isGB ? theme.border : sortedCol.deriveColor(0, 1, 1.2, 1));
+                            gc.strokeRoundRect(bx, 175, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                            gc.setFill(isGB ? theme.bg : Color.WHITE);
+                            gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 9 : 14, isGB));
+                            gc.fillText(i == 0 ? "3" : "5", bx + (isGB ? 14 : 20), 175 + (isGB ? 25 : 30));
+                        } else {
+                            gc.setFill(isGB ? theme.panelBg : Color.web("#1e293b"));
+                            gc.fillRoundRect(bx, 175, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                            gc.setStroke(isGB ? theme.border : Color.web("#334155"));
+                            gc.setLineWidth(1.0);
+                            gc.setLineDashes(new double[]{4.0, 3.0});
+                            gc.strokeRoundRect(bx, 175, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                            gc.setLineDashes(null);
+                        }
+                    }
+
+                    double startX = 50 + 0 * (blockW + gap) + blockW/2.0;
+                    double endX = 100 + 1 * (blockW + gap) + blockW/2.0;
+                    drawArrow(gc, startX, 75 + blockH, endX, 175, isGB ? theme.accent : Color.web("#06b6d4"));
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("STEP 2 DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Compare HEAD A (5) vs HEAD B (10).", 420, textY);
+                    gc.fillText("- Since 5 < 10, select HEAD A.", 420, textY + spacingY);
+                    gc.fillText("- Press [ENTER] to merge it down.", 420, textY + 2 * spacingY);
+                    gc.fillText("- Output array is now [3, 5].", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Merge Sort", 10, 235);
+                } else if (page == 3) { // Page 4: Process - Finalize
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                    gc.fillText("MERGE SORT: PROCESS - FINAL MERGING", 15, 30);
+
+                    Color sortedCol = isGB ? theme.sorted : Color.web("#10b981");
+
+                    double blockW = isGB ? 40 : 48;
+                    double blockH = isGB ? 40 : 48;
+                    double gap = isGB ? 8 : 12;
+
+                    // Draw completed merged output array
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#cbd5e1"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 11, isGB));
+                    gc.fillText("Merged Output Array", 100, 125);
+
+                    double[] finalVals = {3, 5, 10, 15};
+                    for (int i = 0; i < 4; i++) {
+                        double bx = 100 + i * (blockW + gap);
+                        gc.setFill(sortedCol);
+                        gc.fillRoundRect(bx, 140, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                        gc.setStroke(isGB ? theme.border : sortedCol.deriveColor(0, 1, 1.2, 1));
+                        gc.strokeRoundRect(bx, 140, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 9 : 14, isGB));
+                        String valStr = String.valueOf((int)finalVals[i]);
+                        double textOffset = isGB ? (valStr.length() > 1 ? 8 : 14) : (valStr.length() > 1 ? 14 : 20);
+                        gc.fillText(valStr, bx + textOffset, 140 + (isGB ? 25 : 30));
+                    }
+
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGB));
+                    gc.fillText("FINAL STEP DETAILS:", 420, 80);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 10, isGB));
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    double textY = 100;
+                    double spacingY = isGB ? 15 : 20;
+                    gc.fillText("- Merge HEAD B (10) -> Output [3, 5, 10].", 420, textY);
+                    gc.fillText("- Subarray B is now empty.", 420, textY + spacingY);
+                    gc.fillText("- Select remaining HEAD A (15) & merge.", 420, textY + 2 * spacingY);
+                    gc.fillText("- Final sorted array: [3, 5, 10, 15].", 420, textY + 3 * spacingY);
+
+                    drawLegend(gc, "Merge Sort", 10, 235);
+                } else if (page == 4) {
+                    drawDetailedShortcutsPage(gc, "Merge Sort");
+                } else {
+                    String[][] mergeTable = {
+                        {"Best-Case Time", "O(N log N)"},
+                        {"Average-Case Time", "O(N log N)"},
+                        {"Worst-Case Time", "O(N log N)"},
+                        {"Space Complexity", "O(N)"},
+                        {"Stability", "Stable"}
+                    };
+                    String[] mergeCode = {
+                        "function mergeSort(arr, l, r):",
+                        "  if l < r:",
+                        "    mid = (l + r) / 2",
+                        "    mergeSort(arr, l, mid)",
+                        "    mergeSort(arr, mid+1, r)",
+                        "    merge(arr, l, mid, r)"
+                    };
+                    drawComplexityPage(gc, "MERGE SORT: COMPLEXITY & CODE LOGIC", mergeTable, mergeCode, "Merge Sort");
+                }
+            }
+
+            private void drawMiniArray(GraphicsContext gc, double x, double y, double[] values, Color[] colors, int highlightIdx, Color highlightBorderCol, String label) {
+                double blockW = isGB ? 40 : 48;
+                double blockH = isGB ? 40 : 48;
+                double gap = isGB ? 8 : 12;
+                
+                if (label != null && !label.isEmpty()) {
+                    gc.setFill(isGB ? theme.text : Color.web("#cbd5e1"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 11, isGB));
+                    gc.fillText(label, x, y - 8);
+                }
+                
+                for (int i = 0; i < values.length; i++) {
+                    double bx = x + i * (blockW + gap);
+                    Color col = colors[i];
+                    
+                    gc.setFill(col);
+                    gc.fillRoundRect(bx, y, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                    
+                    if (i == highlightIdx && highlightBorderCol != null) {
+                        gc.setStroke(highlightBorderCol);
+                        gc.setLineWidth(isGB ? 2.0 : 3.0);
+                        gc.strokeRoundRect(bx - 1.5, y - 1.5, blockW + 3, blockH + 3, isGB ? 2 : 6, isGB ? 2 : 6);
+                    } else {
+                        gc.setStroke(isGB ? theme.border : col.deriveColor(0, 1, 1.2, 1));
+                        gc.setLineWidth(1.0);
+                        gc.strokeRoundRect(bx, y, blockW, blockH, isGB ? 2 : 6, isGB ? 2 : 6);
+                    }
+                    
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 9 : 14, isGB));
+                    String valStr = String.valueOf((int)values[i]);
+                    double textOffset = isGB ? (valStr.length() > 1 ? 8 : 14) : (valStr.length() > 1 ? 14 : 20);
+                    gc.fillText(valStr, bx + textOffset, y + (isGB ? 25 : 30));
+                }
+            }
+
+            private void drawArrow(GraphicsContext gc, double x1, double y1, double x2, double y2, Color color) {
+                gc.setStroke(color);
+                gc.setLineWidth(2.0);
+                gc.strokeLine(x1, y1, x2, y2);
+                
+                double angle = Math.atan2(y2 - y1, x2 - x1);
+                double arrowHeadSize = 6;
+                double dx1 = arrowHeadSize * Math.cos(angle - Math.PI / 6);
+                double dy1 = arrowHeadSize * Math.sin(angle - Math.PI / 6);
+                double dx2 = arrowHeadSize * Math.cos(angle + Math.PI / 6);
+                double dy2 = arrowHeadSize * Math.sin(angle + Math.PI / 6);
+                
+                gc.strokeLine(x2, y2, x2 - dx1, y2 - dy1);
+                gc.strokeLine(x2, y2, x2 - dx2, y2 - dy2);
+            }
+
+            private void drawSwapArrow(GraphicsContext gc, double x1, double y1, double x2, double y2, Color color) {
+                gc.setStroke(color);
+                gc.setLineWidth(2.0);
+                
+                double ctrlX = (x1 + x2) / 2.0;
+                double ctrlY = y1 - 25; // curve upwards
+                
+                gc.beginPath();
+                gc.moveTo(x1, y1);
+                gc.quadraticCurveTo(ctrlX, ctrlY, x2, y2);
+                gc.stroke();
+                
+                double angle = Math.atan2(y2 - ctrlY, x2 - ctrlX);
+                double arrowHeadSize = 6;
+                double dx1 = arrowHeadSize * Math.cos(angle - Math.PI / 6);
+                double dy1 = arrowHeadSize * Math.sin(angle - Math.PI / 6);
+                double dx2 = arrowHeadSize * Math.cos(angle + Math.PI / 6);
+                double dy2 = arrowHeadSize * Math.sin(angle + Math.PI / 6);
+                
+                gc.strokeLine(x2, y2, x2 - dx1, y2 - dy1);
+                gc.strokeLine(x2, y2, x2 - dx2, y2 - dy2);
+            }
+
+            private void drawComplexityPage(GraphicsContext gc, String title, String[][] complexityTable, String[] pseudocodeLines, String algo) {
+                gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
+                gc.fillText(title, 15, 30);
+
+                double cardW = 310;
+                double cardH = isGB ? 175 : 180;
+                gc.setFill(isGB ? theme.panelBg : Color.web("#1e293b"));
+                gc.fillRoundRect(30, 60, cardW, cardH, isGB ? 2 : 6, isGB ? 2 : 6);
+                gc.setStroke(isGB ? theme.border : Color.web("#334155"));
+                gc.setLineWidth(1.0);
+                gc.strokeRoundRect(30, 60, cardW, cardH, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                gc.setFill(isGB ? theme.text : Color.web("#cbd5e1"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 9 : 12, isGB));
+                gc.fillText("ALGORITHMIC COMPLEXITY", 45, 82);
+
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, isGB ? 8 : 11, isGB));
+                for (int i = 0; i < complexityTable.length; i++) {
+                    double rowY = 110 + i * (isGB ? 20 : 24);
+                    gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                    gc.fillText(complexityTable[i][0], 45, rowY);
+                    
+                    String val = complexityTable[i][1];
+                    boolean isHighlight = val.contains("O(") || val.equals("Stable");
+                    gc.setFill(isHighlight ? (isGB ? theme.accent : Color.web("#f59e0b")) : (isGB ? theme.text : Color.web("#f8fafc")));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 11, isGB));
+                    gc.fillText(val, 210, rowY);
+                }
+
+                gc.setFill(isGB ? theme.panelBg : Color.web("#1e293b"));
+                gc.fillRoundRect(360, 60, cardW, cardH, isGB ? 2 : 6, isGB ? 2 : 6);
+                gc.setStroke(isGB ? theme.border : Color.web("#334155"));
+                gc.strokeRoundRect(360, 60, cardW, cardH, isGB ? 2 : 6, isGB ? 2 : 6);
+
+                gc.setFill(isGB ? theme.text : Color.web("#cbd5e1"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 9 : 12, isGB));
+                gc.fillText("CORE LOGIC (PSEUDOCODE)", 375, 82);
+
+                double charW = isGB ? 5.2 : 6.0;
+                for (int i = 0; i < pseudocodeLines.length; i++) {
+                    double lineY = 110 + i * (isGB ? 15 : 18);
+                    String line = pseudocodeLines[i];
+                    
+                    double drawX = 375;
+                    String[] tokens = line.split("(?<=\\s)|(?=\\s)|(?=\\()|(?<=\\) )|(?=\\))|(?<=\\))");
+                    for (String token : tokens) {
+                        String trimToken = token.trim();
+                        if (trimToken.equals("for") || trimToken.equals("while") || trimToken.equals("if") || trimToken.equals("return") || trimToken.equals("function") || trimToken.equals("else")) {
+                            gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
+                            gc.setFont(getThemeFont(isGB ? "Courier New" : "Consolas", FontWeight.BOLD, isGB ? 8 : 10, isGB));
+                        } else if (trimToken.startsWith("//")) {
+                            gc.setFill(isGB ? theme.textMuted : Color.web("#64748b"));
+                            gc.setFont(getThemeFont(isGB ? "Courier New" : "Consolas", FontWeight.NORMAL, isGB ? 8 : 10, isGB));
+                        } else {
+                            gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                            gc.setFont(getThemeFont(isGB ? "Courier New" : "Consolas", FontWeight.NORMAL, isGB ? 8 : 10, isGB));
+                        }
+                        gc.fillText(token, drawX, lineY);
+                        drawX += token.length() * charW;
+                    }
+                }
+                drawLegend(gc, algo, 10, 235);
+            }
+
+            private void drawDetailedVisualGuide(GraphicsContext gc, String algo, int page) {
+                if (algo.equalsIgnoreCase("Selection Sort")) {
+                    drawSelectionDetailed(gc, page);
+                } else if (algo.equalsIgnoreCase("Quick Sort")) {
+                    drawQuickDetailed(gc, page);
+                } else if (algo.equalsIgnoreCase("Bubble Sort")) {
+                    drawBubbleDetailed(gc, page);
+                } else if (algo.equalsIgnoreCase("Insertion Sort")) {
+                    drawInsertionDetailed(gc, page);
+                } else {
+                    drawMergeDetailed(gc, page);
+                }
+            }
         };
         
         startBtn.setOnAction(event -> {
@@ -4085,16 +5385,34 @@ public class ChromaCascadeApp extends Application {
                 tutorialTimer.stop();
                 root.getChildren().remove(overlay);
             } else if (event.getCode() == javafx.scene.input.KeyCode.RIGHT || event.getCode() == javafx.scene.input.KeyCode.D) {
-                if (currentStepHolder[0] < maxSteps - 1) {
-                    currentStepHolder[0]++;
-                    stepLabel.setText(String.format("Step %d of %d", currentStepHolder[0] + 1, maxSteps));
-                    SoundManager.playClick();
+                boolean showDetailed = showDetailedHolder[0];
+                if (showDetailed) {
+                    if (detailedPageHolder[0] < maxDetailedPages - 1) {
+                        detailedPageHolder[0]++;
+                        SoundManager.playClick();
+                        refreshTabContent.run();
+                    }
+                } else {
+                    if (currentStepHolder[0] < maxSteps - 1) {
+                        currentStepHolder[0]++;
+                        SoundManager.playClick();
+                        refreshTabContent.run();
+                    }
                 }
             } else if (event.getCode() == javafx.scene.input.KeyCode.LEFT || event.getCode() == javafx.scene.input.KeyCode.A) {
-                if (currentStepHolder[0] > 0) {
-                    currentStepHolder[0]--;
-                    stepLabel.setText(String.format("Step %d of %d", currentStepHolder[0] + 1, maxSteps));
-                    SoundManager.playClick();
+                boolean showDetailed = showDetailedHolder[0];
+                if (showDetailed) {
+                    if (detailedPageHolder[0] > 0) {
+                        detailedPageHolder[0]--;
+                        SoundManager.playClick();
+                        refreshTabContent.run();
+                    }
+                } else {
+                    if (currentStepHolder[0] > 0) {
+                        currentStepHolder[0]--;
+                        SoundManager.playClick();
+                        refreshTabContent.run();
+                    }
                 }
             }
         });

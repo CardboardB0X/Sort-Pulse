@@ -77,9 +77,8 @@ rem Build native Windows setup installer (.exe wizard)
 echo Building Windows installer (.exe setup)...
 jpackage --type exe --input jar_input --dest dist --name "SortPulseInstaller" --main-jar sort-pulse.jar --module-path "%JFX_PATH%\lib" --add-modules javafx.controls,javafx.graphics --win-dir-chooser --win-shortcut
 if %errorlevel% neq 0 (
-    echo Windows installer build failed.
-    pause
-    exit /b %errorlevel%
+    echo [Sort Pulse Packaging] Note: Windows installer setup build skipped or failed.
+    echo (This usually occurs if WiX Toolset is not installed or not in the PATH. Standalone portable image is still available!)
 )
 
 echo ===================================================
