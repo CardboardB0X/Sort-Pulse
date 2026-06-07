@@ -108,15 +108,71 @@ public class ChromaCascadeApp extends Application {
     }
 
     public static final java.util.Map<String, Theme> THEMES = new java.util.LinkedHashMap<>();
+    public static boolean isCustomFontLoaded = false;
     static {
         THEMES.put("Classic Neon", new Theme("Classic Neon", "#0b0f19", "#0f172a", "#1e293b", "#10b981", "#334155", "#f59e0b", "#f8fafc", "#64748b"));
-        THEMES.put("GameBoy Retro", new Theme("GameBoy Retro", "#0f380f", "#306230", "#0f380f", "#9bbc0f", "#8bac0f", "#9bbc0f", "#e0f8d0", "#8bac0f"));
+        THEMES.put("GameBoy Retro", new Theme("GameBoy Retro", "#cadc9f", "#8b9c6a", "#475230", "#475230", "#8b9c6a", "#1e2412", "#1e2412", "#475230"));
+        
+        try (java.io.InputStream is = ChromaCascadeApp.class.getResourceAsStream("/app/PressStart2P-Regular.ttf")) {
+            if (is != null) {
+                if (Font.loadFont(is, 12) != null) {
+                    isCustomFontLoaded = true;
+                }
+            }
+        } catch (Exception e) {
+            // Ignore
+        }
+    }
+
+    private static final java.util.Map<Double, Font> fontCache = new java.util.HashMap<>();
+
+    public static Font getThemeFont(String family, FontWeight weight, double size, boolean isGB) {
+        if (isGB) {
+            double scaledSize = Math.round(size * 0.72);
+            if (scaledSize < 6) scaledSize = 6;
+            
+            Font cached = fontCache.get(scaledSize);
+            if (cached != null) {
+                return cached;
+            }
+            
+            if (isCustomFontLoaded) {
+                try (java.io.InputStream is = ChromaCascadeApp.class.getResourceAsStream("/app/PressStart2P-Regular.ttf")) {
+                    if (is != null) {
+                        Font font = Font.loadFont(is, scaledSize);
+                        if (font != null) {
+                            fontCache.put(scaledSize, font);
+                            return font;
+                        }
+                    }
+                } catch (Exception e) {
+                    // Fallback
+                }
+            }
+            Font fallback = Font.font("Courier New", FontWeight.BOLD, Math.round(size * 1.1));
+            fontCache.put(scaledSize, fallback);
+            return fallback;
+        }
+        return Font.font(family, weight, size);
     }
 
     private static void styleMenuButton(Button btn, Theme theme, String hoverHex) {
-        btn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-min-width: 280; -fx-cursor: hand;");
-        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: " + hoverHex + "; -fx-text-fill: " + theme.bgHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: " + hoverHex + "; -fx-border-width: 1px; -fx-min-width: 280; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, " + hoverHex + "4D, 8, 0, 0, 0);"));
-        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 30px; -fx-background-radius: 6px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-min-width: 280; -fx-cursor: hand;"));
+        boolean isGB = theme.name.equalsIgnoreCase("GameBoy Retro");
+        String fontFam = isGB && isCustomFontLoaded ? "'Press Start 2P'" : (isGB ? "'Courier New'" : "'Segoe UI', sans-serif");
+        String fontSize = isGB ? "10px" : "14px";
+        String hoverBg = isGB ? theme.textHex : hoverHex;
+        String hoverText = isGB ? theme.bgHex : theme.bgHex;
+        
+        btn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + fontSize + "; -fx-padding: 12px 30px; -fx-background-radius: 4px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1.5px; -fx-min-width: 280; -fx-cursor: hand;");
+        
+        btn.setOnMouseEntered(e -> {
+            String effect = isGB ? "" : " -fx-effect: dropshadow(three-pass-box, " + hoverHex + "4D, 8, 0, 0, 0);";
+            btn.setStyle("-fx-background-color: " + hoverBg + "; -fx-text-fill: " + hoverText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + fontSize + "; -fx-padding: 12px 30px; -fx-background-radius: 4px; -fx-border-color: " + hoverBg + "; -fx-border-width: 1.5px; -fx-min-width: 280; -fx-cursor: hand;" + effect);
+        });
+        
+        btn.setOnMouseExited(e -> {
+            btn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + fontSize + "; -fx-padding: 12px 30px; -fx-background-radius: 4px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1.5px; -fx-min-width: 280; -fx-cursor: hand;");
+        });
     }
 
     private static void applyTheme(String themeName, StackPane rootContainer, VBox menuLayout, VBox leaderboardLayout, VBox gameLayout, 
@@ -125,36 +181,48 @@ public class ChromaCascadeApp extends Application {
             Button selectionBtn, Button quickBtn, Button mergeBtn, Button bubbleBtn, Button insertionBtn, Button leaderboardBtn) {
         
         Theme theme = THEMES.getOrDefault(themeName, THEMES.get("Classic Neon"));
+        boolean isGB = theme.name.equalsIgnoreCase("GameBoy Retro");
+        String fontFam = isGB && isCustomFontLoaded ? "'Press Start 2P'" : (isGB ? "'Courier New'" : "'Segoe UI', sans-serif");
+        String fontMono = isGB && isCustomFontLoaded ? "'Press Start 2P'" : (isGB ? "'Courier New'" : "'Consolas', monospace");
         
         // Root backgrounds
-        rootContainer.setStyle("-fx-background-color: " + theme.bgHex + ";");
-        menuLayout.setStyle("-fx-background-color: " + theme.bgHex + ";");
-        leaderboardLayout.setStyle("-fx-background-color: " + theme.bgHex + ";");
-        gameLayout.setStyle("-fx-background-color: " + theme.bgHex + ";");
+        String smoothStyle = isGB ? "; -fx-font-smoothing-type: gray;" : "";
+        rootContainer.setStyle("-fx-background-color: " + theme.bgHex + smoothStyle);
+        menuLayout.setStyle("-fx-background-color: " + theme.bgHex + smoothStyle);
+        leaderboardLayout.setStyle("-fx-background-color: " + theme.bgHex + smoothStyle);
+        gameLayout.setStyle("-fx-background-color: " + theme.bgHex + smoothStyle);
         
         // Titles and Text headers
-        menuTitle.setStyle("-fx-font-family: 'Segoe UI', 'Outfit', sans-serif; -fx-font-size: 44px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + "; -fx-effect: dropshadow(three-pass-box, " + theme.accentHex + "66, 12, 0, 0, 0);");
-        menuSubtitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: " + theme.textMutedHex + "; -fx-padding: -15px 0 10px 0;");
-        themeLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: " + theme.textMutedHex + ";");
-        practiceModeCb.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: " + theme.textHex + ";");
-        lbTitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + ";");
+        if (isGB) {
+            menuTitle.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + ";");
+            menuSubtitle.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: 8px; -fx-text-fill: " + theme.textMutedHex + "; -fx-padding: -10px 0 10px 0; -fx-font-weight: bold;");
+            themeLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: 8px; -fx-font-weight: bold; -fx-text-fill: " + theme.textMutedHex + ";");
+            practiceModeCb.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: 9px; -fx-text-fill: " + theme.textHex + "; -fx-font-weight: bold;");
+            lbTitle.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + ";");
+        } else {
+            menuTitle.setStyle("-fx-font-family: 'Segoe UI', 'Outfit', sans-serif; -fx-font-size: 44px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + "; -fx-effect: dropshadow(three-pass-box, " + theme.accentHex + "66, 12, 0, 0, 0);");
+            menuSubtitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: " + theme.textMutedHex + "; -fx-padding: -15px 0 10px 0;");
+            themeLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: " + theme.textMutedHex + ";");
+            practiceModeCb.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: " + theme.textHex + ";");
+            lbTitle.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + ";");
+        }
         
         // Dropdown selection style
-        themeCb.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-background-radius: 4px; -fx-border-radius: 4px;");
+        themeCb.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1.5px; -fx-background-radius: 4px; -fx-border-radius: 4px; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + (isGB ? "9px" : "12px") + ";");
         
         // Back Button
-        backBtn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-cursor: hand;");
-        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: " + theme.sortedHex + "; -fx-text-fill: " + theme.bgHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: " + theme.sortedHex + "; -fx-border-width: 1px; -fx-cursor: hand;"));
-        backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 13px; -fx-padding: 10px 24px; -fx-background-radius: 6px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px; -fx-cursor: hand;"));
+        backBtn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-padding: 10px 24px; -fx-background-radius: 4px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1.5px; -fx-cursor: hand;");
+        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: " + theme.textHex + "; -fx-text-fill: " + theme.bgHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-padding: 10px 24px; -fx-background-radius: 4px; -fx-border-color: " + theme.textHex + "; -fx-border-width: 1.5px; -fx-cursor: hand;"));
+        backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-padding: 10px 24px; -fx-background-radius: 4px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1.5px; -fx-cursor: hand;"));
 
         // HUD panel components
-        timerVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + ";");
-        scoreVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + theme.sortedHex + ";");
-        modeLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: " + theme.textHex + ";");
-        controlGuide.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 12px; -fx-fill: " + theme.textMutedHex + ";");
+        timerVal.setStyle("-fx-font-family: " + fontMono + "; -fx-font-size: " + (isGB ? "24px" : "44px") + "; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + ";");
+        scoreVal.setStyle("-fx-font-family: " + fontMono + "; -fx-font-size: " + (isGB ? "10px" : "16px") + "; -fx-font-weight: bold; -fx-text-fill: " + theme.textHex + ";");
+        modeLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-font-weight: bold; -fx-text-fill: " + theme.sortedHex + ";");
+        controlGuide.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: " + (isGB ? "8px" : "11px") + "; -fx-fill: " + theme.textMutedHex + "; -fx-font-weight: bold;");
 
         // Log View list
-        logView.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-control-inner-background: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: 'Consolas', monospace; -fx-font-size: 11px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1px;");
+        logView.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-control-inner-background: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: " + fontMono + "; -fx-font-size: " + (isGB ? "8px" : "11px") + "; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1.5px;");
 
         // Menu buttons (styled according to algorithm accent colors)
         styleMenuButton(selectionBtn, theme, "#10b981"); // Emerald Green
@@ -1335,20 +1403,6 @@ public class ChromaCascadeApp extends Application {
             Theme theme = model.getTheme();
             boolean isGameBoy = theme.name.equalsIgnoreCase("GameBoy Retro");
 
-            GraphicsContext originalGc = this.gc;
-            Canvas originalCanvas = this.canvas;
-
-            if (isGameBoy) {
-                if (offscreenCanvas == null) {
-                    offscreenCanvas = new Canvas(800, 400);
-                    offscreenGc = offscreenCanvas.getGraphicsContext2D();
-                    pixelateCanvas = new Canvas(200, 100);
-                    pixelateGc = pixelateCanvas.getGraphicsContext2D();
-                }
-                this.canvas = offscreenCanvas;
-                this.gc = offscreenGc;
-            }
-
             // Draw background
             gc.setFill(theme.bg);
             gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
@@ -1414,7 +1468,7 @@ public class ChromaCascadeApp extends Application {
                             gc.setLineDashes(null);
 
                             gc.setFill(theme.accent.deriveColor(0, 1, 1, 0.7));
-                            gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                            gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGameBoy));
                             gc.fillText("SUBARRAY A (SORTED)", ax1 + 6, ay1 - 4);
                         }
 
@@ -1432,7 +1486,7 @@ public class ChromaCascadeApp extends Application {
                             gc.setLineDashes(null);
 
                             gc.setFill(theme.accent.deriveColor(0, 1, 1, 0.7));
-                            gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                            gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGameBoy));
                             gc.fillText("SUBARRAY B (SORTED)", bx1 + 6, by1 - 4);
                         }
 
@@ -1449,7 +1503,7 @@ public class ChromaCascadeApp extends Application {
                         gc.setLineDashes(null);
 
                         gc.setFill(theme.sorted.deriveColor(0, 1, 1, 0.7));
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGameBoy));
                         gc.fillText("MERGED OUTPUT SLOT", ox1 + 6, oy1 - 4);
                     } else {
                         double rx1 = startX + activeLeft * boxWidth + 2;
@@ -1464,7 +1518,7 @@ public class ChromaCascadeApp extends Application {
                         gc.setLineDashes(null);
 
                         gc.setFill(theme.textMuted.deriveColor(0, 1, 1, 0.7));
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 9));
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 9, isGameBoy));
                         gc.fillText("ACTIVE SUBARRAY", rx1 + 6, ry1 - 4);
                     }
                 }
@@ -1562,7 +1616,7 @@ public class ChromaCascadeApp extends Application {
                         gc.setFill(Color.web("#ea580c"));
                         gc.fillRoundRect(badgeX, y - 17, badgeW, 13, 3, 3);
                         gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGameBoy));
                         gc.fillText("PIVOT", badgeX + (badgeW - 25) / 2.0, y - 8);
                     } else if (isHeadA) {
                         double badgeW = Math.min(w, 42.0);
@@ -1570,7 +1624,7 @@ public class ChromaCascadeApp extends Application {
                         gc.setFill(theme.accent);
                         gc.fillRoundRect(badgeX, y - 17, badgeW, 13, 3, 3);
                         gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGameBoy));
                         gc.fillText("HEAD A", badgeX + (badgeW - 30) / 2.0, y - 8);
                     } else if (isHeadB) {
                         double badgeW = Math.min(w, 42.0);
@@ -1578,20 +1632,21 @@ public class ChromaCascadeApp extends Application {
                         gc.setFill(theme.accent);
                         gc.fillRoundRect(badgeX, y - 17, badgeW, 13, 3, 3);
                         gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGameBoy));
                         gc.fillText("HEAD B", badgeX + (badgeW - 30) / 2.0, y - 8);
                     }
 
                     // Centered raw integer value
                     gc.setFill(theme.text);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 20, isGameBoy));
                     String valStr = String.valueOf(segment.getRawValue());
-                    double textWidth = 10 * valStr.length();
+                    double charWidth = isGameBoy ? 12.0 : 10.0;
+                    double textWidth = charWidth * valStr.length();
                     gc.fillText(valStr, x + (w - textWidth) / 2.0, y + 46);
 
                     // Weight detail
                     String weightStr = String.format("%.1f", segment.calculateSortWeight());
-                    gc.setFont(Font.font("Consolas", FontWeight.NORMAL, 9.0));
+                    gc.setFont(getThemeFont("Consolas", FontWeight.NORMAL, 9.0, isGameBoy));
                     gc.setFill(theme.textMuted.deriveColor(0, 1, 1, 0.8));
                     double wStrWidth = 5.5 * weightStr.length();
                     gc.fillText(weightStr, x + (w - wStrWidth) / 2.0, y + h - 6);
@@ -1624,8 +1679,10 @@ public class ChromaCascadeApp extends Application {
 
                         // Draw operator text
                         gc.setFill(theme.accent);
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
-                        gc.fillText(op, midX - 5.5, midY + 5.5);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 16, isGameBoy));
+                        double opOffsetX = isGameBoy ? -4.0 : -5.5;
+                        double opOffsetY = isGameBoy ? 4.0 : 5.5;
+                        gc.fillText(op, midX + opOffsetX, midY + opOffsetY);
                     }
                 }
 
@@ -1647,9 +1704,10 @@ public class ChromaCascadeApp extends Application {
                     gc.strokeLine(arrowX + 4, arrowYHead - 4, arrowX, arrowYHead);
 
                     gc.setFill(modeAccent);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 9));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 9, isGameBoy));
                     String targetLabel = "TARGET SLOT";
-                    gc.fillText(targetLabel, arrowX - 28, arrowYTail - 4);
+                    double labelOffset = isGameBoy ? -36 : -28;
+                    gc.fillText(targetLabel, arrowX + labelOffset, arrowYTail - 4);
                 }
             }
 
@@ -1664,13 +1722,15 @@ public class ChromaCascadeApp extends Application {
                 gc.strokeRect(10, overlayY, canvas.getWidth() - 20, 100);
 
                 gc.setFill(theme.sorted);
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 22, isGameBoy));
                 String bannerMsg = "WAVE COMPLETED!";
-                gc.fillText(bannerMsg, (canvas.getWidth() - 14 * bannerMsg.length()) / 2.0, overlayY + 44);
+                double msgCharW = isGameBoy ? 16.0 : 14.0;
+                gc.fillText(bannerMsg, (canvas.getWidth() - msgCharW * bannerMsg.length()) / 2.0, overlayY + 44);
 
                 gc.setFill(theme.text);
-                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
-                gc.fillText("Generating next scrambled set...", canvas.getWidth() / 2.0 - 80, overlayY + 74);
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 13, isGameBoy));
+                double promptOffset = isGameBoy ? -120 : -80;
+                gc.fillText("Generating next scrambled set...", canvas.getWidth() / 2.0 + promptOffset, overlayY + 74);
             }
 
             // Draw Game Over Screen Mask
@@ -1688,19 +1748,22 @@ public class ChromaCascadeApp extends Application {
 
                     // Title
                     gc.setFill(theme.accent);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 22, isGameBoy));
                     String title = "NEW HIGH SCORE!";
-                    gc.fillText(title, 400 - (title.length() * 6.5), 115);
+                    double tCharW = isGameBoy ? 8.0 : 6.5;
+                    gc.fillText(title, 400 - (title.length() * tCharW), 115);
 
                     // Subtitle
                     gc.setFill(theme.text);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 14));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 14, isGameBoy));
                     String sub = "Score: " + model.getScore();
-                    gc.fillText(sub, 400 - (sub.length() * 4.0), 145);
+                    double sCharW = isGameBoy ? 5.0 : 4.0;
+                    gc.fillText(sub, 400 - (sub.length() * sCharW), 145);
 
                     gc.setFill(theme.textMuted);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
-                    gc.fillText("ENTER YOUR INITIALS", 335, 180);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 12, isGameBoy));
+                    double initLabelX = isGameBoy ? 310 : 335;
+                    gc.fillText("ENTER YOUR INITIALS", initLabelX, 180);
 
                     // Draw Initials Input Boxes
                     String initials = model.getPlayerInitials();
@@ -1714,8 +1777,9 @@ public class ChromaCascadeApp extends Application {
 
                         if (k < initials.length()) {
                             gc.setFill(theme.text);
-                            gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
-                            gc.fillText(String.valueOf(initials.charAt(k)), bx + 11, by + 36);
+                            gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 26, isGameBoy));
+                            double keyOffX = isGameBoy ? 8 : 11;
+                            gc.fillText(String.valueOf(initials.charAt(k)), bx + keyOffX, by + 36);
                         } else if (k == initials.length()) {
                             // Flash cursor
                             if ((System.currentTimeMillis() / 400) % 2 == 0) {
@@ -1726,31 +1790,34 @@ public class ChromaCascadeApp extends Application {
                     }
 
                     gc.setFill(theme.textMuted);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10));
-                    gc.fillText("TYPE A-Z AND PRESS ENTER TO REGISTER", 295, 290);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 10, isGameBoy));
+                    double helperX = isGameBoy ? 250 : 295;
+                    gc.fillText("TYPE A-Z AND PRESS ENTER TO REGISTER", helperX, 290);
                 } else {
                     // Draw Leaderboard Table Box
-                    gc.setStroke(Color.web("#ef4444", 0.7));
+                    gc.setStroke(isGameBoy ? theme.border : Color.web("#ef4444", 0.7));
                     gc.setLineWidth(2.0);
                     gc.strokeRoundRect(160, 50, 480, 300, 8, 8);
                     gc.setFill(theme.panelBg.deriveColor(0, 1, 1, 0.98));
                     gc.fillRoundRect(160, 50, 480, 300, 8, 8);
 
                     // Title
-                    gc.setFill(Color.web("#ef4444"));
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 22));
+                    gc.setFill(isGameBoy ? theme.accent : Color.web("#ef4444"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 22, isGameBoy));
                     String title = "TIME EXPIRED";
-                    gc.fillText(title, 400 - (title.length() * 6.5), 90);
+                    double expiredCharW = isGameBoy ? 8.0 : 6.5;
+                    gc.fillText(title, 400 - (title.length() * expiredCharW), 90);
 
                     // Subtitle
                     gc.setFill(theme.text);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 13, isGameBoy));
                     String sub = "Final Score: " + model.getScore() + " | Completed Waves: " + model.getCompletedWavesCount();
-                    gc.fillText(sub, 400 - (sub.length() * 4.0), 115);
+                    double expiredSubW = isGameBoy ? 5.0 : 4.0;
+                    gc.fillText(sub, 400 - (sub.length() * expiredSubW), 115);
 
                     // Headers
                     gc.setFill(theme.textMuted);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGameBoy));
                     gc.fillText("RANK", 190, 145);
                     gc.fillText("NAME", 260, 145);
                     gc.fillText("SCORE", 380, 145);
@@ -1774,7 +1841,7 @@ public class ChromaCascadeApp extends Application {
 
                         Color rowColor = highlight ? theme.accent : theme.text;
                         gc.setFill(rowColor);
-                        gc.setFont(Font.font("Consolas", highlight ? FontWeight.BOLD : FontWeight.NORMAL, 12));
+                        gc.setFont(getThemeFont("Consolas", highlight ? FontWeight.BOLD : FontWeight.NORMAL, 12, isGameBoy));
                         
                         gc.fillText(String.format("%02d", idx + 1), 195, ry);
                         gc.fillText(ent.name, 265, ry);
@@ -1786,8 +1853,9 @@ public class ChromaCascadeApp extends Application {
                     gc.strokeLine(180, 305, 620, 305);
 
                     gc.setFill(theme.textMuted);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
-                    gc.fillText("Press R to Restart | ESC to Main Menu", 295, 328);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 11, isGameBoy));
+                    double restartHelpX = isGameBoy ? 245 : 295;
+                    gc.fillText("Press R to Restart | ESC to Main Menu", restartHelpX, 328);
                 }
             }
 
@@ -1809,7 +1877,7 @@ public class ChromaCascadeApp extends Application {
             // Draw combo count if comboCount >= 2
             if (model.getComboCount() >= 2) {
                 gc.setFill(theme.accent);
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 15));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 15, isGameBoy));
                 String comboText = "COMBO x" + model.getComboCount() + " (" + model.getComboCount() + "x Multiplier!)";
                 double pulse = 1.0 + 0.04 * Math.sin(System.currentTimeMillis() / 100.0);
                 gc.save();
@@ -1846,32 +1914,14 @@ public class ChromaCascadeApp extends Application {
                 }
             }
 
-            if (isGameBoy) {
-                // Restore original references
-                this.canvas = originalCanvas;
-                this.gc = originalGc;
-
-                // 1. Snapshot the high-res offscreen canvas
-                SnapshotParameters params = new SnapshotParameters();
-                params.setFill(Color.TRANSPARENT);
-                WritableImage highResImg = offscreenCanvas.snapshot(params, null);
-
-                // 2. Draw it scaled down onto the pixelate canvas (200x100)
-                pixelateGc.setFill(theme.bg);
-                pixelateGc.fillRect(0, 0, 200, 100);
-                pixelateGc.setImageSmoothing(true);
-                pixelateGc.drawImage(highResImg, 0, 0, 200, 100);
-
-                // 3. Snapshot the low-res pixelate canvas
-                WritableImage lowResImg = pixelateCanvas.snapshot(params, null);
-
-                // 4. Draw the low-res image scaled up onto the main canvas with smoothing disabled (pixelated)
-                gc.setImageSmoothing(false);
-                gc.drawImage(lowResImg, 0, 0, 800, 400);
-            }
         }
 
         public void updateHUD() {
+            Theme theme = model.getTheme();
+            boolean isGB = theme.name.equalsIgnoreCase("GameBoy Retro");
+            String fontFam = isGB && isCustomFontLoaded ? "'Press Start 2P'" : (isGB ? "'Courier New'" : "'Segoe UI', sans-serif");
+            String fontMono = isGB && isCustomFontLoaded ? "'Press Start 2P'" : (isGB ? "'Courier New'" : "'Consolas', monospace");
+
             if (scoreValLabel != null) {
                 if (model.isPracticeMode()) {
                     scoreValLabel.setText("PRACTICE MODE (UNTIMED)");
@@ -1886,18 +1936,23 @@ public class ChromaCascadeApp extends Application {
                     }
                     scoreValLabel.setText(String.format("SCORE: %05d    HI-SCORE: %05d", model.getScore(), topScore));
                 }
+                scoreValLabel.setStyle("-fx-font-family: " + fontMono + "; -fx-font-size: " + (isGB ? "10px" : "16px") + "; -fx-text-fill: " + theme.textHex + "; -fx-font-weight: bold;");
             }
             if (timerValLabel != null) {
                 if (model.isPracticeMode()) {
                     timerValLabel.setText("PRACTICE");
-                    timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 32px; -fx-text-fill: #10b981; -fx-font-weight: bold;");
+                    timerValLabel.setStyle("-fx-font-family: " + fontMono + "; -fx-font-size: " + (isGB ? "16px" : "32px") + "; -fx-text-fill: " + theme.sortedHex + "; -fx-font-weight: bold;");
                 } else {
                     int rem = model.getCountdownTimer();
                     timerValLabel.setText(rem + "s");
-                    if (rem <= 5) {
-                        timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f43f5e; -fx-font-weight: bold; -fx-effect: dropshadow(three-pass-box, rgba(244,63,94,0.6), 10, 0, 0, 0);");
+                    if (isGB) {
+                        timerValLabel.setStyle("-fx-font-family: " + fontMono + "; -fx-font-size: 24px; -fx-text-fill: " + theme.accentHex + "; -fx-font-weight: bold;");
                     } else {
-                        timerValLabel.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f59e0b; -fx-font-weight: bold;");
+                        if (rem <= 5) {
+                            timerValLabel.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 44px; -fx-text-fill: #f43f5e; -fx-font-weight: bold; -fx-effect: dropshadow(three-pass-box, rgba(244,63,94,0.6), 10, 0, 0, 0);");
+                        } else {
+                            timerValLabel.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 44px; -fx-text-fill: " + theme.accentHex + "; -fx-font-weight: bold;");
+                        }
                     }
                 }
             }
@@ -1908,6 +1963,7 @@ public class ChromaCascadeApp extends Application {
                 } else {
                     targetValLabel.setText(modeLabelStr + " | WAVE: " + (model.getCompletedWavesCount() + 1));
                 }
+                targetValLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-text-fill: " + theme.sortedHex + "; -fx-font-weight: bold;");
             }
         }
     }
@@ -2493,26 +2549,38 @@ public class ChromaCascadeApp extends Application {
 
         Runnable refreshLeaderboard = () -> {
             columns.getChildren().clear();
+            Theme theme = model.getTheme();
+            boolean isGB = theme.name.equalsIgnoreCase("GameBoy Retro");
+            String fontFam = isGB && isCustomFontLoaded ? "'Press Start 2P'" : (isGB ? "'Courier New'" : "'Segoe UI', sans-serif");
+            String fontMono = isGB && isCustomFontLoaded ? "'Press Start 2P'" : (isGB ? "'Courier New'" : "'Consolas', monospace");
+
             String[] modes = {"Selection Sort", "Bubble Sort", "Insertion Sort", "Quick Sort", "Merge Sort"};
             for (String modeName : modes) {
                 VBox col = new VBox(10);
                 col.setAlignment(Pos.TOP_CENTER);
-                col.setStyle("-fx-background-color: #0f172a; -fx-padding: 12px; -fx-background-radius: 6px; -fx-border-color: #1e293b; -fx-border-width: 1px; -fx-min-width: 170;");
+                
+                String colBg = theme.panelBgHex;
+                String colBorder = theme.borderHex;
+                double colMinW = isGB ? 150 : 170;
+                col.setStyle("-fx-background-color: " + colBg + "; -fx-padding: 12px; -fx-background-radius: 4px; -fx-border-color: " + colBorder + "; -fx-border-width: 1.5px; -fx-min-width: " + colMinW + ";");
 
                 Label modeHeader = new Label(modeName.toUpperCase());
-                modeHeader.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 10px; -fx-text-fill: #cbd5e1;");
+                double headerSize = isGB ? 7 : 10;
+                modeHeader.setStyle("-fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + headerSize + "px; -fx-text-fill: " + theme.textHex + ";");
                 col.getChildren().add(modeHeader);
 
                 java.util.List<LeaderboardManager.Entry> top = LeaderboardManager.getTopScores(modeName, 5);
                 if (top.isEmpty()) {
                     Label noScores = new Label("NO SCORES YET");
-                    noScores.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 10px; -fx-text-fill: #475569;");
+                    double noScoresSize = isGB ? 7 : 10;
+                    noScores.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: " + noScoresSize + "px; -fx-text-fill: " + theme.textMutedHex + ";");
                     col.getChildren().add(noScores);
                 } else {
                     for (int i = 0; i < top.size(); i++) {
                         LeaderboardManager.Entry ent = top.get(i);
                         Label entryLbl = new Label((i + 1) + ". " + ent.name + " - " + ent.score);
-                        entryLbl.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px; -fx-text-fill: #cbd5e1;");
+                        double entrySize = isGB ? 7 : 11;
+                        entryLbl.setStyle("-fx-font-family: " + fontMono + "; -fx-font-size: " + entrySize + "px; -fx-text-fill: " + theme.textHex + ";");
                         col.getChildren().add(entryLbl);
                     }
                 }
@@ -2619,7 +2687,7 @@ public class ChromaCascadeApp extends Application {
 
         // Setup Mode Button actions to enter Play state
         selectionBtn.setOnAction(event -> {
-            showTutorialOverlay(rootContainer, "Selection Sort", () -> {
+            showTutorialOverlay(rootContainer, "Selection Sort", model, () -> {
                 model.setTargetAlgorithm("Selection Sort");
                 model.setGameState("PLAYING");
                 controller.initializeGame();
@@ -2629,7 +2697,7 @@ public class ChromaCascadeApp extends Application {
         });
 
         quickBtn.setOnAction(event -> {
-            showTutorialOverlay(rootContainer, "Quick Sort", () -> {
+            showTutorialOverlay(rootContainer, "Quick Sort", model, () -> {
                 model.setTargetAlgorithm("Quick Sort");
                 model.setGameState("PLAYING");
                 controller.initializeGame();
@@ -2639,7 +2707,7 @@ public class ChromaCascadeApp extends Application {
         });
 
         mergeBtn.setOnAction(event -> {
-            showTutorialOverlay(rootContainer, "Merge Sort", () -> {
+            showTutorialOverlay(rootContainer, "Merge Sort", model, () -> {
                 model.setTargetAlgorithm("Merge Sort");
                 model.setGameState("PLAYING");
                 controller.initializeGame();
@@ -2649,7 +2717,7 @@ public class ChromaCascadeApp extends Application {
         });
 
         bubbleBtn.setOnAction(event -> {
-            showTutorialOverlay(rootContainer, "Bubble Sort", () -> {
+            showTutorialOverlay(rootContainer, "Bubble Sort", model, () -> {
                 model.setTargetAlgorithm("Bubble Sort");
                 model.setGameState("PLAYING");
                 controller.initializeGame();
@@ -2659,7 +2727,7 @@ public class ChromaCascadeApp extends Application {
         });
 
         insertionBtn.setOnAction(event -> {
-            showTutorialOverlay(rootContainer, "Insertion Sort", () -> {
+            showTutorialOverlay(rootContainer, "Insertion Sort", model, () -> {
                 model.setTargetAlgorithm("Insertion Sort");
                 model.setGameState("PLAYING");
                 controller.initializeGame();
@@ -2739,49 +2807,74 @@ public class ChromaCascadeApp extends Application {
         rootContainer.requestFocus();
     }
 
-    private void showTutorialOverlay(StackPane root, String algorithm, Runnable onStartGame) {
+    private void showTutorialOverlay(StackPane root, String algorithm, ChromaCascadeModel model, Runnable onStartGame) {
+        Theme theme = model.getTheme();
+        boolean isGB = theme.name.equalsIgnoreCase("GameBoy Retro");
+        String fontFam = isGB && isCustomFontLoaded ? "'Press Start 2P'" : (isGB ? "'Courier New'" : "'Segoe UI', sans-serif");
+
         VBox overlay = new VBox(15);
         overlay.setAlignment(Pos.CENTER);
         overlay.setPadding(new Insets(30));
-        overlay.setStyle("-fx-background-color: rgba(11, 15, 25, 0.98);");
+        overlay.setStyle("-fx-background-color: " + (isGB ? theme.bgHex : "rgba(11, 15, 25, 0.98)") + ";");
 
         String accentColor;
         String descText = "";
         String proTip;
 
+        if (isGB) {
+            accentColor = theme.accentHex;
+        } else if (algorithm.equalsIgnoreCase("Selection Sort")) {
+            accentColor = "#10b981";
+        } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
+            accentColor = "#f59e0b";
+        } else if (algorithm.equalsIgnoreCase("Bubble Sort")) {
+            accentColor = "#ec4899";
+        } else if (algorithm.equalsIgnoreCase("Insertion Sort")) {
+            accentColor = "#8b5cf6";
+        } else {
+            accentColor = "#3b82f6";
+        }
+
         if (algorithm.equalsIgnoreCase("Selection Sort")) {
-            accentColor = "#10b981"; // Emerald green
             descText = "VISUAL PLAY GUIDE:\n1. PRESS [A]/[D] to move selection cursor left/right.\n2. SELECT the absolute minimum value from remaining grey blocks.\n3. PRESS [ENTER] on the minimum. It shifts left, turns green (sorted).";
             proTip = "Pro Tip: Use the decimal weights rendered beneath each block to quickly compare values!";
         } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
-            accentColor = "#f59e0b"; // Amber gold
             descText = "VISUAL PLAY GUIDE:\n1. PIVOT is the rightmost block of active range.\n2. PRESS [A]/[D] to move selection cursor.\n3. PRESS [ENTER] on blocks smaller than/equal to pivot to shift them left. Finally shift pivot.";
             proTip = "Pro Tip: Look at the orange PIVOT badge and follow the TARGET SLOT arrow to partition elements!";
         } else if (algorithm.equalsIgnoreCase("Bubble Sort")) {
-            accentColor = "#ec4899"; // Hot pink / Vaporwave pink
             descText = "VISUAL PLAY GUIDE:\n1. COMPARE adjacent elements under the flashing cursor frame.\n2. DECIDE if they are in the correct order (left <= right).\n3. IF OUT OF ORDER, PRESS [ENTER] to swap them. Otherwise, PRESS [D] to step forward.";
             proTip = "Pro Tip: Bubble Sort repeatedly swaps adjacent out-of-order pairs from left to right until the largest element bubbles to the end!";
         } else if (algorithm.equalsIgnoreCase("Insertion Sort")) {
-            accentColor = "#8b5cf6"; // Purple / Indigo
             descText = "VISUAL PLAY GUIDE:\n1. THE CURSOR highlights the element to be inserted into the sorted sub-list on its left.\n2. PRESS [ENTER] to swap the cursor element leftward if it is smaller than its left neighbor.\n3. REPEAT until the element is in its correct sorted position, then press [D] to move to the next item.";
             proTip = "Pro Tip: Shift the element leftward step-by-step using [ENTER] as long as the left element is larger than it!";
         } else {
-            accentColor = "#3b82f6"; // Dodge blue
             descText = "VISUAL PLAY GUIDE:\n1. COMPARE the two subarray head blocks currently being merged.\n2. SELECT the smaller value of the two using the cursor.\n3. PRESS [ENTER] to shift it down into the output area.";
             proTip = "Pro Tip: Focus on the cyan HEAD A and HEAD B badges; they highlight the two elements to compare!";
         }
 
         Label titleLabel = new Label(algorithm.toUpperCase() + " VISUAL PREVIEW");
-        titleLabel.setStyle("-fx-font-family: 'Segoe UI', 'Outfit', sans-serif; -fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: " + accentColor + "; -fx-effect: dropshadow(three-pass-box, " + accentColor + "66, 10, 0, 0, 0);");
+        if (isGB) {
+            titleLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: " + accentColor + ";");
+        } else {
+            titleLabel.setStyle("-fx-font-family: 'Segoe UI', 'Outfit', sans-serif; -fx-font-size: 26px; -fx-font-weight: bold; -fx-text-fill: " + accentColor + "; -fx-effect: dropshadow(three-pass-box, " + accentColor + "66, 10, 0, 0, 0);");
+        }
 
         Label descLabel = new Label(descText);
-        descLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #e2e8f0; -fx-line-spacing: 4px;");
+        if (isGB) {
+            descLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: 7px; -fx-text-fill: " + theme.textHex + "; -fx-line-spacing: 6px;");
+        } else {
+            descLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #e2e8f0; -fx-line-spacing: 4px;");
+        }
         descLabel.setWrapText(true);
         descLabel.setMaxWidth(700);
 
         // Canvas for animated sorting preview (expanded height for legend and keys)
         Canvas canvas = new Canvas(700, 320);
         GraphicsContext gc = canvas.getGraphicsContext2D();
+
+        // Pixelation canvas for tutorial (GameBoy mode)
+        final Canvas tutPixCanvas = isGB ? new Canvas(350, 160) : null;
+        final GraphicsContext tutPixGc = isGB ? tutPixCanvas.getGraphicsContext2D() : null;
 
         // 3. Step-by-Step Navigation Controls
         final int[] currentStepHolder = {0};
@@ -2802,15 +2895,20 @@ public class ChromaCascadeApp extends Application {
         navBox.setAlignment(Pos.CENTER);
         navBox.setPadding(new Insets(5, 0, 5, 0));
 
+        String navBtnBg = isGB ? theme.panelBgHex : "#1e293b";
+        String navBtnText = isGB ? theme.textHex : "#f8fafc";
+        String navBtnBorder = isGB ? theme.borderHex : "#334155";
+        String navFontSize = isGB ? "8px" : "11px";
+
         Button prevBtn = new Button("PREV STEP");
-        prevBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 8px 20px; -fx-background-radius: 5px; -fx-cursor: hand; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 5px;");
+        prevBtn.setStyle("-fx-background-color: " + navBtnBg + "; -fx-text-fill: " + navBtnText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + navFontSize + "; -fx-padding: 8px 20px; -fx-background-radius: 5px; -fx-cursor: hand; -fx-border-color: " + navBtnBorder + "; -fx-border-width: 1px; -fx-border-radius: 5px;");
         
         Label stepLabel = new Label(String.format("Step 1 of %d", maxSteps));
-        stepLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #f8fafc; -fx-font-weight: bold; -fx-min-width: 100; -fx-alignment: center;");
+        stepLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-text-fill: " + navBtnText + "; -fx-font-weight: bold; -fx-min-width: 100; -fx-alignment: center;");
         stepLabel.setAlignment(Pos.CENTER);
 
         Button nextBtn = new Button("NEXT STEP");
-        nextBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 8px 20px; -fx-background-radius: 5px; -fx-cursor: hand; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 5px;");
+        nextBtn.setStyle("-fx-background-color: " + navBtnBg + "; -fx-text-fill: " + navBtnText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + navFontSize + "; -fx-padding: 8px 20px; -fx-background-radius: 5px; -fx-cursor: hand; -fx-border-color: " + navBtnBorder + "; -fx-border-width: 1px; -fx-border-radius: 5px;");
 
         navBox.getChildren().addAll(prevBtn, stepLabel, nextBtn);
 
@@ -2833,25 +2931,32 @@ public class ChromaCascadeApp extends Application {
         VBox tipBox = new VBox(8);
         tipBox.setPadding(new Insets(12));
         tipBox.setMaxWidth(700);
-        tipBox.setStyle("-fx-background-color: #1e293b; -fx-border-color: " + accentColor + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-background-radius: 6px;");
+        tipBox.setStyle("-fx-background-color: " + (isGB ? theme.panelBgHex : "#1e293b") + "; -fx-border-color: " + accentColor + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-background-radius: 6px;");
         Label tipLabel = new Label(proTip);
         tipLabel.setWrapText(true);
-        tipLabel.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 13px; -fx-text-fill: #94a3b8; -fx-font-style: italic;");
+        tipLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: " + (isGB ? "7px" : "13px") + "; -fx-text-fill: " + (isGB ? theme.textMutedHex : "#94a3b8") + "; -fx-font-style: italic;");
         tipBox.getChildren().add(tipLabel);
 
         HBox btnBox = new HBox(20);
         btnBox.setAlignment(Pos.CENTER);
         btnBox.setPadding(new Insets(10, 0, 0, 0));
 
+        String startFontSize = isGB ? "9px" : "14px";
+        String startTextCol = isGB ? theme.bgHex : "#ffffff";
         Button startBtn = new Button("START GAME");
-        startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;");
-        startBtn.setOnMouseEntered(e -> startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, " + accentColor + "66, 8, 0, 0, 0);"));
-        startBtn.setOnMouseExited(e -> startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;"));
+        startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: " + startTextCol + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;");
+        startBtn.setOnMouseEntered(e -> startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: " + startTextCol + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;" + (isGB ? "" : " -fx-effect: dropshadow(three-pass-box, " + accentColor + "66, 8, 0, 0, 0);")));
+        startBtn.setOnMouseExited(e -> startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: " + startTextCol + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;"));
 
+        String backBg = isGB ? theme.panelBgHex : "#1e293b";
+        String backText = isGB ? theme.textHex : "#f8fafc";
+        String backBorder = isGB ? theme.borderHex : "#334155";
+        String backHoverBg = isGB ? theme.textHex : "#ef4444";
+        String backHoverText = isGB ? theme.bgHex : "#ffffff";
         Button backBtn = new Button("BACK");
-        backBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;");
-        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: #ef4444; -fx-text-fill: #ffffff; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: #ef4444; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;"));
-        backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: #1e293b; -fx-text-fill: #f8fafc; -fx-font-family: 'Segoe UI', sans-serif; -fx-font-weight: bold; -fx-font-size: 14px; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: #334155; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;"));
+        backBtn.setStyle("-fx-background-color: " + backBg + "; -fx-text-fill: " + backText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + backBorder + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;");
+        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: " + backHoverBg + "; -fx-text-fill: " + backHoverText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + backHoverBg + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;"));
+        backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: " + backBg + "; -fx-text-fill: " + backText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + backBorder + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;"));
 
         btnBox.getChildren().addAll(startBtn, backBtn);
         overlay.getChildren().addAll(titleLabel, descLabel, canvas, navBox, tipBox, btnBox);
@@ -2900,9 +3005,9 @@ public class ChromaCascadeApp extends Application {
             
             @Override
             public void handle(long now) {
-                gc.setFill(Color.web("#0f172a"));
+                gc.setFill(isGB ? theme.panelBg : Color.web("#0f172a"));
                 gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
-                gc.setStroke(Color.web("#1e293b"));
+                gc.setStroke(isGB ? theme.border : Color.web("#1e293b"));
                 gc.setLineWidth(1.0);
                 gc.strokeRect(0, 0, canvas.getWidth(), canvas.getHeight());
                 
@@ -2925,85 +3030,85 @@ public class ChromaCascadeApp extends Application {
                 double h = 24;
                 
                 // Key shadow
-                gc.setFill(Color.web("#020617"));
+                gc.setFill(isGB ? theme.bg.darker() : Color.web("#020617"));
                 gc.fillRoundRect(x + 1, y + 2, w, h, 4, 4);
                 
                 // Key base
-                gc.setFill(isPressed ? Color.web("#10b981") : Color.web("#1e293b"));
-                gc.setStroke(isPressed ? Color.web("#34d399") : Color.web("#475569"));
+                gc.setFill(isPressed ? (isGB ? theme.sorted : Color.web("#10b981")) : (isGB ? theme.border : Color.web("#1e293b")));
+                gc.setStroke(isPressed ? (isGB ? theme.sorted.brighter() : Color.web("#34d399")) : (isGB ? theme.textMuted : Color.web("#475569")));
                 gc.setLineWidth(1.5);
                 gc.fillRoundRect(x, y, w, h, 4, 4);
                 gc.strokeRoundRect(x, y, w, h, 4, 4);
                 
                 // Key text
-                gc.setFill(isPressed ? Color.BLACK : Color.web("#f8fafc"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 10));
+                gc.setFill(isPressed ? (isGB ? theme.bg : Color.BLACK) : (isGB ? theme.text : Color.web("#f8fafc")));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 10, isGB));
                 gc.fillText(label, x + (w - (label.length() * 6)) / 2.0 - 2, y + 15);
             }
 
             private void drawLegend(GraphicsContext gc, String algo, double x, double y) {
-                gc.setFill(Color.web("#1e293b", 0.6));
-                gc.setStroke(Color.web("#334155", 0.8));
+                gc.setFill(isGB ? theme.bg.deriveColor(0,1,1,0.6) : Color.web("#1e293b", 0.6));
+                gc.setStroke(isGB ? theme.border.deriveColor(0,1,1,0.8) : Color.web("#334155", 0.8));
                 gc.setLineWidth(1.0);
                 gc.fillRoundRect(x, y, 680, 75, 6, 6);
                 gc.strokeRoundRect(x, y, 680, 75, 6, 6);
                 
                 // Draw Legend Title
-                gc.setFill(Color.web("#94a3b8"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 9));
-                gc.fillText("VISUAL UI INDICATORS LEGEND", x + 12, y + 15);
+                gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 9, isGB));
+                gc.fillText(isGB ? "LEGEND" : "VISUAL UI INDICATORS LEGEND", x + 12, y + 15);
                 
                 // Draw Legend elements
                 double startX = x + 12;
                 double startY = y + 24;
                 
                 // 1. Target Arrow
-                gc.setStroke(Color.web("#f59e0b"));
+                gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
                 gc.setLineWidth(2.0);
                 gc.strokeLine(startX, startY + 15, startX, startY + 5);
                 gc.strokeLine(startX - 3, startY + 8, startX, startY + 5);
                 gc.strokeLine(startX + 3, startY + 8, startX, startY + 5);
-                gc.setFill(Color.web("#f8fafc"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
-                gc.fillText("Target Slot Arrow (Destination index for shifts)", startX + 12, startY + 13);
+                gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, isGB ? 8 : 10, isGB));
+                gc.fillText(isGB ? "Target Arrow (Destination index)" : "Target Slot Arrow (Destination index for shifts)", startX + 12, startY + 13);
                 
                 // 2. Active range
-                double activeX = x + 250;
-                gc.setStroke(Color.web("#64748b"));
+                double activeX = x + (isGB ? 280 : 250);
+                gc.setStroke(isGB ? theme.textMuted : Color.web("#64748b"));
                 gc.setLineDashes(new double[]{4.0, 3.0});
                 gc.strokeRoundRect(activeX, startY + 3, 30, 12, 2, 2);
                 gc.setLineDashes(null);
-                gc.fillText("Dashed Frame (Active Subarray Segment)", activeX + 36, startY + 13);
+                gc.fillText(isGB ? "Dashed Frame (Active segment)" : "Dashed Frame (Active Subarray Segment)", activeX + 36, startY + 13);
                 
                 // 3. Algorithm specific legends
-                double specificX = x + 480;
+                double specificX = x + (isGB ? 495 : 480);
                 if (algo.equalsIgnoreCase("Quick Sort")) {
-                    gc.setFill(Color.web("#ea580c"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#ea580c"));
                     gc.fillRoundRect(specificX, startY + 2, 32, 13, 2, 2);
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 7));
-                    gc.fillText("PIVOT", specificX + 5, startY + 11);
-                    gc.setFill(Color.web("#f8fafc"));
-                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
-                    gc.fillText("Pivot Block Badge", specificX + 38, startY + 13);
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 7, isGB));
+                    gc.fillText("PIVOT", specificX + (isGB ? 2 : 5), startY + 11);
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, isGB ? 8 : 10, isGB));
+                    gc.fillText(isGB ? "Pivot Badge" : "Pivot Block Badge", specificX + 38, startY + 13);
                 } else if (algo.equalsIgnoreCase("Merge Sort")) {
-                    gc.setFill(Color.web("#06b6d4"));
+                    gc.setFill(isGB ? theme.sorted : Color.web("#06b6d4"));
                     gc.fillRoundRect(specificX, startY + 2, 32, 13, 2, 2);
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 7));
-                    gc.fillText("HEAD", specificX + 6, startY + 11);
-                    gc.setFill(Color.web("#f8fafc"));
-                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
-                    gc.fillText("Active Subarray Heads", specificX + 38, startY + 13);
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 7, isGB));
+                    gc.fillText("HEAD", specificX + (isGB ? 4 : 6), startY + 11);
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, isGB ? 8 : 10, isGB));
+                    gc.fillText(isGB ? "Subarray Heads" : "Active Subarray Heads", specificX + 38, startY + 13);
                 } else {
-                    gc.setFill(Color.web("#10b981"));
+                    gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
                     gc.fillRoundRect(specificX, startY + 2, 32, 13, 2, 2);
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 7));
-                    gc.fillText("SORT", specificX + 6, startY + 11);
-                    gc.setFill(Color.web("#f8fafc"));
-                    gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 10));
-                    gc.fillText("Green block (Sorted & Finalized)", specificX + 38, startY + 13);
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGB ? 8 : 7, isGB));
+                    gc.fillText("SORT", specificX + (isGB ? 4 : 6), startY + 11);
+                    gc.setFill(isGB ? theme.text : Color.web("#f8fafc"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, isGB ? 8 : 10, isGB));
+                    gc.fillText(isGB ? "Sorted Block" : "Green block (Sorted & Finalized)", specificX + 38, startY + 13);
                 }
             }
             
@@ -3066,8 +3171,8 @@ public class ChromaCascadeApp extends Application {
                 }
                 
                 // Draw title of the current phase
-                gc.setFill(Color.web("#10b981"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 12, isGB));
                 if (step == 0) {
                     gc.fillText("PHASE 1: SCAN FOR THE MINIMUM ELEMENT IN UNSORTED RANGE [0, 4]", 15, 25);
                 } else if (step == 1) {
@@ -3102,28 +3207,28 @@ public class ChromaCascadeApp extends Application {
                 if (step < 10) {
                     double rx1 = startX + targetIndex * boxWidth + 2;
                     double rx2 = startX + 5 * boxWidth - 2;
-                    gc.setStroke(Color.web("#475569", 0.6));
+                    gc.setStroke(isGB ? theme.textMuted.deriveColor(0,1,1,0.6) : Color.web("#475569", 0.6));
                     gc.setLineWidth(1.5);
                     gc.setLineDashes(new double[]{4.0, 3.0});
                     gc.strokeRoundRect(rx1, startY - 10, rx2 - rx1, boxHeight + 20, 6, 6);
                     gc.setLineDashes(null);
                     
-                    gc.setFill(Color.web("#94a3b8", 0.7));
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.setFill(isGB ? theme.textMuted.deriveColor(0,1,1,0.7) : Color.web("#94a3b8", 0.7));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
                     gc.fillText("UNSORTED RANGE", rx1 + 6, startY - 14);
 
                     // Draw Target Slot pointer
                     double arrowX = startX + targetIndex * boxWidth + boxWidth / 2.0;
                     double arrowYHead = startY - 4;
                     double arrowYTail = startY - 18;
-                    gc.setStroke(Color.web("#10b981"));
+                    gc.setStroke(isGB ? theme.sorted : Color.web("#10b981"));
                     gc.setLineWidth(2.0);
                     gc.strokeLine(arrowX, arrowYTail, arrowX, arrowYHead);
                     gc.strokeLine(arrowX - 3, arrowYHead - 3, arrowX, arrowYHead);
                     gc.strokeLine(arrowX + 3, arrowYHead - 3, arrowX, arrowYHead);
                     
-                    gc.setFill(Color.web("#10b981"));
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
                     gc.fillText("TARGET", arrowX - 16, arrowYTail - 4);
                 }
                 
@@ -3134,21 +3239,21 @@ public class ChromaCascadeApp extends Application {
                     double h = 65;
                     
                     boolean isSorted = selectionGreen[i];
-                    Color col = isSorted ? Color.web("#10b981") : Color.web("#334155");
+                    Color col = isSorted ? (isGB ? theme.sorted : Color.web("#10b981")) : (isGB ? theme.unsorted : Color.web("#334155"));
                     
                     gc.setFill(col);
                     gc.fillRoundRect(x, y, w, h, 6, 6);
                     gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
                     gc.strokeRoundRect(x, y, w, h, 6, 6);
                     
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
                     gc.fillText(String.valueOf((int)selectionVals[i]), x + 22, y + 38);
                 }
                 
                 if (selectionCursor != -1) {
                     double cursorX = selectionX[selectionCursor];
-                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.setLineWidth(2.5);
                     gc.strokeRoundRect(cursorX - 2, 60 - 2, 69, 69, 6, 6);
                 }
@@ -3161,35 +3266,35 @@ public class ChromaCascadeApp extends Application {
                 drawKeyCap(gc, 250, 145, "D", dPressed);
                 drawKeyCap(gc, 320, 145, "ENTER", enterPressed);
 
-                gc.setFill(Color.web("#94a3b8"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 13, isGB));
                 if (step == 0) {
                     gc.fillText("Virtual Player pressing [D] to scan unsorted blocks...", 170, 195);
                 } else if (step == 1) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("Found Minimum 5! Pressing [ENTER] to shift to target index 0...", 130, 195);
                 } else if (step == 2) {
                     gc.fillText("Scanning unsorted section to find next minimum...", 160, 195);
                 } else if (step == 3) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("Found Minimum 8! Pressing [ENTER] to shift to target index 1...", 130, 195);
                 } else if (step == 4) {
                     gc.fillText("Scanning unsorted section to find next minimum...", 160, 195);
                 } else if (step == 5) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("Found Minimum 12! Pressing [ENTER] to shift to target index 2...", 130, 195);
                 } else if (step == 6) {
                     gc.fillText("Scanning unsorted section to find next minimum...", 160, 195);
                 } else if (step == 7) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("Found Minimum 15! Pressing [ENTER] to shift to target index 3...", 130, 195);
                 } else if (step == 8) {
                     gc.fillText("Only one block left in unsorted range...", 210, 195);
                 } else if (step == 9) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("Pressing [ENTER] to finalize last element 22...", 190, 195);
                 } else {
-                    gc.setFill(Color.web("#10b981"));
+                    gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
                     gc.fillText("Sorting complete! All blocks are finalized and locked in green.", 150, 195);
                 }
                 
@@ -3262,8 +3367,8 @@ public class ChromaCascadeApp extends Application {
                 }
                 
                 // Draw phase title
-                gc.setFill(Color.web("#f59e0b"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 12, isGB));
                 if (step == 0) {
                     gc.fillText("PHASE 1: COMPARE SCANNING ELEMENTS WITH PIVOT (10)", 15, 25);
                 } else if (step == 1) {
@@ -3303,28 +3408,28 @@ public class ChromaCascadeApp extends Application {
                     // Draw dashed range
                     double rx1 = startX + pLeft * boxWidth + 2;
                     double rx2 = startX + (pRight + 1) * boxWidth - 2;
-                    gc.setStroke(Color.web("#475569", 0.6));
+                    gc.setStroke(isGB ? theme.textMuted.deriveColor(0,1,1,0.6) : Color.web("#475569", 0.6));
                     gc.setLineWidth(1.5);
                     gc.setLineDashes(new double[]{4.0, 3.0});
                     gc.strokeRoundRect(rx1, startY - 10, rx2 - rx1, boxHeight + 20, 6, 6);
                     gc.setLineDashes(null);
                     
-                    gc.setFill(Color.web("#94a3b8", 0.7));
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.setFill(isGB ? theme.textMuted.deriveColor(0,1,1,0.7) : Color.web("#94a3b8", 0.7));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
                     gc.fillText(step < 5 ? "ACTIVE PARTITION RANGE [0, 4]" : "SUB-PARTITION RANGE [2, 4]", rx1 + 8, startY - 14);
 
                     // Draw Target Slot Arrow
                     double arrowX = startX + targetIndex * boxWidth + boxWidth / 2.0;
                     double arrowYHead = startY - 4;
                     double arrowYTail = startY - 18;
-                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.setLineWidth(2.0);
                     gc.strokeLine(arrowX, arrowYTail, arrowX, arrowYHead);
                     gc.strokeLine(arrowX - 3, arrowYHead - 3, arrowX, arrowYHead);
                     gc.strokeLine(arrowX + 3, arrowYHead - 3, arrowX, arrowYHead);
                     
-                    gc.setFill(Color.web("#f59e0b"));
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
                     gc.fillText("TARGET SLOT", arrowX - 22, arrowYTail - 4);
                 }
                 
@@ -3337,31 +3442,31 @@ public class ChromaCascadeApp extends Application {
                     boolean isSorted = quickGreen[i];
                     boolean isPivot = (step < 5 && i == 4) || (step >= 5 && step < 8 && i == 3);
                     
-                    Color col = isSorted ? Color.web("#10b981") : (isPivot ? Color.web("#f59e0b") : Color.web("#334155"));
+                    Color col = isSorted ? (isGB ? theme.sorted : Color.web("#10b981")) : (isPivot ? (isGB ? theme.accent : Color.web("#f59e0b")) : (isGB ? theme.unsorted : Color.web("#334155")));
                     
                     gc.setFill(col);
                     gc.fillRoundRect(x, y, w, h, 6, 6);
                     gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
                     gc.strokeRoundRect(x, y, w, h, 6, 6);
                     
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
                     gc.fillText(String.valueOf((int)quickVals[i]), x + 22, y + 38);
                     
                     if (isPivot && !isSorted) {
                         double badgeW = 38;
                         double badgeX = x + (w - badgeW) / 2.0;
-                        gc.setFill(Color.web("#ea580c"));
+                        gc.setFill(isGB ? theme.accent : Color.web("#ea580c"));
                         gc.fillRoundRect(badgeX, y - 14, badgeW, 11, 2, 2);
-                        gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 7));
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 7, isGB));
                         gc.fillText("PIVOT", badgeX + 6, y - 6);
                     }
                 }
                 
                 if (quickCursor != -1) {
                     double cursorX = quickX[quickCursor];
-                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.setLineWidth(2.5);
                     gc.strokeRoundRect(cursorX - 2, 60 - 2, 69, 69, 6, 6);
                     
@@ -3377,14 +3482,14 @@ public class ChromaCascadeApp extends Application {
                         int valP = (int) quickVals[pivotTutIdx];
                         String op = valC < valP ? "<" : (valC > valP ? ">" : "=");
                         
-                        gc.setFill(Color.web("#0b0f19"));
-                        gc.setStroke(Color.web("#f59e0b"));
+                        gc.setFill(isGB ? theme.bg : Color.web("#0b0f19"));
+                        gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
                         gc.setLineWidth(1.5);
                         gc.fillOval(opMidX - 12, opMidY - 12, 24, 24);
                         gc.strokeOval(opMidX - 12, opMidY - 12, 24, 24);
                         
-                        gc.setFill(Color.web("#f59e0b"));
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+                        gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
                         gc.fillText(op, opMidX - 4.5, opMidY + 5);
                     }
                 }
@@ -3397,30 +3502,30 @@ public class ChromaCascadeApp extends Application {
                 drawKeyCap(gc, 250, 145, "D", dPressed);
                 drawKeyCap(gc, 320, 145, "ENTER", enterPressed);
 
-                gc.setFill(Color.web("#94a3b8"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 13, isGB));
                 if (step == 0) {
                     gc.fillText("Scanning elements: 12 > 10. No shift. Pressing [D]...", 170, 195);
                 } else if (step == 1) {
                     gc.fillText("Scanning elements: 18 > 10. No shift. Pressing [D]...", 170, 195);
                 } else if (step == 2) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("5 <= Pivot (10)! Pressing [ENTER] to shift to target index 0...", 130, 195);
                 } else if (step == 3) {
                     gc.fillText("Scanning elements: 15 > 10. No shift. Pressing [D]...", 170, 195);
                 } else if (step == 4) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("Partition scan complete. Pressing [ENTER] to shift Pivot to index 1...", 120, 195);
                 } else if (step == 5) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("New partition [2, 4] with Pivot 15. 12 <= 15! Pressing [ENTER]...", 125, 195);
                 } else if (step == 6) {
                     gc.fillText("Scanning elements: 18 > 15. No shift. Pressing [D]...", 170, 195);
                 } else if (step == 7) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("Partition scan complete. Pressing [ENTER] to shift Pivot to index 3...", 120, 195);
                 } else {
-                    gc.setFill(Color.web("#10b981"));
+                    gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
                     gc.fillText("Sorting complete! All partitions sorted and finalized.", 170, 195);
                 }
                 
@@ -3454,8 +3559,8 @@ public class ChromaCascadeApp extends Application {
                 }
                 
                 // Draw phase title
-                gc.setFill(Color.web("#3b82f6"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                gc.setFill(isGB ? theme.accent : Color.web("#3b82f6"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 12, isGB));
                 if (step == 0) {
                     gc.fillText("PHASE 1: COMPARE HEADS A (5) & B (3) -> CHOOSE SMALLER (3)", 15, 25);
                 } else if (step == 1) {
@@ -3469,7 +3574,7 @@ public class ChromaCascadeApp extends Application {
                 }
 
                 // Draw active subarray dashed frames
-                gc.setStroke(Color.web("#475569", 0.6));
+                gc.setStroke(isGB ? theme.textMuted.deriveColor(0,1,1,0.6) : Color.web("#475569", 0.6));
                 gc.setLineWidth(1.2);
                 gc.setLineDashes(new double[]{4.0, 3.0});
                 
@@ -3482,8 +3587,8 @@ public class ChromaCascadeApp extends Application {
                 
                 gc.setLineDashes(null);
                 
-                gc.setFill(Color.web("#94a3b8", 0.7));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                gc.setFill(isGB ? theme.textMuted.deriveColor(0,1,1,0.7) : Color.web("#94a3b8", 0.7));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
                 gc.fillText("SUBARRAY A (SORTED)", 115, 36);
                 gc.fillText("SUBARRAY B (SORTED)", 335, 36);
                 gc.fillText("MERGED OUTPUT SLOT", 175, 116);
@@ -3496,7 +3601,7 @@ public class ChromaCascadeApp extends Application {
                     double arrowX = 180 + targetIndex * 80 + 25;
                     double arrowYHead = 120;
                     double arrowYTail = 106;
-                    gc.setStroke(Color.web("#06b6d4"));
+                    gc.setStroke(isGB ? theme.sorted : Color.web("#06b6d4"));
                     gc.setLineWidth(2.0);
                     gc.strokeLine(arrowX, arrowYTail, arrowX, arrowYHead);
                     gc.strokeLine(arrowX - 3, arrowYHead - 3, arrowX, arrowYHead);
@@ -3508,29 +3613,29 @@ public class ChromaCascadeApp extends Application {
                     double x = mergeSub1X[i];
                     double y = mergeSub1Y[i];
                     boolean merged = mergeSub1Merged[i];
-                    Color col = (merged && mergeOutGreen[i==0?1:3]) ? Color.web("#10b981") : Color.web("#334155");
+                    Color col = (merged && mergeOutGreen[i==0?1:3]) ? (isGB ? theme.sorted : Color.web("#10b981")) : (isGB ? theme.unsorted : Color.web("#334155"));
                     
                     gc.setFill(col);
                     gc.fillRoundRect(x, y, 50, 45, 4, 4);
                     gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
                     gc.strokeRoundRect(x, y, 50, 45, 4, 4);
                     
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
                     gc.fillText(String.valueOf((int)mergeSub1[i]), x + 16, y + 26);
 
                     // HEAD A Badge
                     if (i == 0 && !mergeSub1Merged[0] && step < 2) {
-                        gc.setFill(Color.web("#06b6d4"));
+                        gc.setFill(isGB ? theme.sorted : Color.web("#06b6d4"));
                         gc.fillRoundRect(x + 5, y - 12, 40, 10, 2, 2);
-                        gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 6));
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 6, isGB));
                         gc.fillText("HEAD A", x + 9, y - 5);
                     } else if (i == 1 && !mergeSub1Merged[1] && mergeSub1Merged[0] && step >= 2 && step < 4) {
-                        gc.setFill(Color.web("#06b6d4"));
+                        gc.setFill(isGB ? theme.sorted : Color.web("#06b6d4"));
                         gc.fillRoundRect(x + 5, y - 12, 40, 10, 2, 2);
-                        gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 6));
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 6, isGB));
                         gc.fillText("HEAD A", x + 9, y - 5);
                     }
                 }
@@ -3540,29 +3645,29 @@ public class ChromaCascadeApp extends Application {
                     double x = mergeSub2X[i];
                     double y = mergeSub2Y[i];
                     boolean merged = mergeSub2Merged[i];
-                    Color col = (merged && mergeOutGreen[i==0?0:2]) ? Color.web("#10b981") : Color.web("#334155");
+                    Color col = (merged && mergeOutGreen[i==0?0:2]) ? (isGB ? theme.sorted : Color.web("#10b981")) : (isGB ? theme.unsorted : Color.web("#334155"));
                     
                     gc.setFill(col);
                     gc.fillRoundRect(x, y, 50, 45, 4, 4);
                     gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
                     gc.strokeRoundRect(x, y, 50, 45, 4, 4);
                     
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 14, isGB));
                     gc.fillText(String.valueOf((int)mergeSub2[i]), x + 16, y + 26);
 
                     // HEAD B Badge
                     if (i == 0 && !mergeSub2Merged[0] && step < 1) {
-                        gc.setFill(Color.web("#06b6d4"));
+                        gc.setFill(isGB ? theme.sorted : Color.web("#06b6d4"));
                         gc.fillRoundRect(x + 5, y - 12, 40, 10, 2, 2);
-                        gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 6));
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 6, isGB));
                         gc.fillText("HEAD B", x + 9, y - 5);
                     } else if (i == 1 && !mergeSub2Merged[1] && mergeSub2Merged[0] && step >= 1 && step < 3) {
-                        gc.setFill(Color.web("#06b6d4"));
+                        gc.setFill(isGB ? theme.sorted : Color.web("#06b6d4"));
                         gc.fillRoundRect(x + 5, y - 12, 40, 10, 2, 2);
-                        gc.setFill(Color.WHITE);
-                        gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 6));
+                        gc.setFill(isGB ? theme.bg : Color.WHITE);
+                        gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 6, isGB));
                         gc.fillText("HEAD B", x + 9, y - 5);
                     }
                 }
@@ -3585,7 +3690,7 @@ public class ChromaCascadeApp extends Application {
                 }
                 
                 if (cursorVisible) {
-                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.setLineWidth(2.0);
                     gc.strokeRoundRect(cursorX - 1, cursorY - 1, 52, 47, 4, 4);
                 }
@@ -3597,8 +3702,8 @@ public class ChromaCascadeApp extends Application {
                 drawKeyCap(gc, 250, 200, "D", false);
                 drawKeyCap(gc, 320, 200, "ENTER", enterPressed);
 
-                gc.setFill(Color.web("#94a3b8"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 13, isGB));
                 if (step == 0) {
                     gc.fillText("Comparing subarray heads: 5 vs 3. Select smaller head (3)...", 130, 190);
                 } else if (step == 1) {
@@ -3608,7 +3713,7 @@ public class ChromaCascadeApp extends Application {
                 } else if (step == 3) {
                     gc.fillText("Subarray B is empty. Select remaining head (15)...", 150, 190);
                 } else {
-                    gc.setFill(Color.web("#10b981"));
+                    gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
                     gc.fillText("Sub-arrays successfully merged! Output finalizes green.", 160, 190);
                 }
                 
@@ -3646,8 +3751,8 @@ public class ChromaCascadeApp extends Application {
                     bubbleX[i] += (bubbleTargetX[i] - bubbleX[i]) * 0.15;
                 }
 
-                gc.setFill(Color.web("#ec4899"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                gc.setFill(isGB ? theme.accent : Color.web("#ec4899"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 12, isGB));
                 if (step == 0) {
                     gc.fillText("STEP 1: COMPARE 8 AND 15. SINCE 8 <= 15, THEY ARE IN ORDER. PRESS [D] TO STEP FORWARD.", 15, 25);
                 } else if (step == 1) {
@@ -3670,14 +3775,14 @@ public class ChromaCascadeApp extends Application {
                 if (bubbleCursor >= 0 && bubbleCursor < 4) {
                     double rx1 = startX + bubbleCursor * boxWidth - 2;
                     double rx2 = rx1 + boxWidth * 2 - 12;
-                    gc.setStroke(Color.web("#ec4899", 0.8));
+                    gc.setStroke(isGB ? theme.accent.deriveColor(0,1,1,0.8) : Color.web("#ec4899", 0.8));
                     gc.setLineWidth(2.0);
                     gc.setLineDashes(new double[]{4.0, 3.0});
                     gc.strokeRoundRect(rx1, startY - 8, rx2 - rx1, boxHeight + 16, 6, 6);
                     gc.setLineDashes(null);
                     
-                    gc.setFill(Color.web("#ec4899"));
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                    gc.setFill(isGB ? theme.accent : Color.web("#ec4899"));
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
                     gc.fillText("COMPARE PAIR", rx1 + 6, startY - 12);
                 }
 
@@ -3688,21 +3793,21 @@ public class ChromaCascadeApp extends Application {
                     double h = 65;
 
                     boolean isSorted = bubbleGreen[i];
-                    Color col = isSorted ? Color.web("#10b981") : Color.web("#334155");
+                    Color col = isSorted ? (isGB ? theme.sorted : Color.web("#10b981")) : (isGB ? theme.unsorted : Color.web("#334155"));
 
                     gc.setFill(col);
                     gc.fillRoundRect(x, y, w, h, 6, 6);
                     gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
                     gc.strokeRoundRect(x, y, w, h, 6, 6);
 
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
                     gc.fillText(String.valueOf((int)bubbleVals[i]), x + 22, y + 38);
                 }
 
                 if (bubbleCursor >= 0 && bubbleCursor < 4) {
                     double cursorX = startX + bubbleCursor * boxWidth;
-                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.setLineWidth(2.5);
                     gc.strokeRoundRect(cursorX - 2, 60 - 2, boxWidth * 2 - 11, 69, 6, 6);
                 }
@@ -3714,21 +3819,21 @@ public class ChromaCascadeApp extends Application {
                 drawKeyCap(gc, 250, 145, "D", dPressed);
                 drawKeyCap(gc, 320, 145, "ENTER", enterPressed);
 
-                gc.setFill(Color.web("#94a3b8"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 13, isGB));
                 if (step == 0) {
                     gc.fillText("Adjacent values 8 and 15 are sorted. Press [D] to advance cursor.", 150, 195);
                 } else if (step == 1) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("15 > 5 is out of order. Press [ENTER] to swap elements.", 175, 195);
                 } else if (step == 2) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("15 > 12 is out of order. Press [ENTER] to swap elements.", 175, 195);
                 } else if (step == 3) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("15 > 10 is out of order. Press [ENTER] to swap elements.", 175, 195);
                 } else if (step == 4) {
-                    gc.setFill(Color.web("#10b981"));
+                    gc.setFill(isGB ? theme.sorted : Color.web("#10b981"));
                     gc.fillText("15 bubbled to its final position! Locking element in green.", 160, 195);
                 } else {
                     gc.fillText("First pass complete. Press [START GAME] to play!", 195, 195);
@@ -3768,8 +3873,8 @@ public class ChromaCascadeApp extends Application {
                     insertionX[i] += (insertionTargetX[i] - insertionX[i]) * 0.15;
                 }
 
-                gc.setFill(Color.web("#8b5cf6"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 12));
+                gc.setFill(isGB ? theme.accent : Color.web("#8b5cf6"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 12, isGB));
                 if (step == 0) {
                     gc.fillText("STEP 1: SORTED SUB-LIST IS [5, 12]. ACTIVE ELEMENT TO INSERT IS 8.", 15, 25);
                 } else if (step == 1) {
@@ -3795,21 +3900,21 @@ public class ChromaCascadeApp extends Application {
 
                 double rx1 = startX + 2;
                 double rx2 = startX + sortedCount * boxWidth - 12;
-                gc.setStroke(Color.web("#8b5cf6", 0.6));
+                gc.setStroke(isGB ? theme.accent.deriveColor(0,1,1,0.6) : Color.web("#8b5cf6", 0.6));
                 gc.setLineWidth(1.5);
                 gc.setLineDashes(new double[]{4.0, 3.0});
                 gc.strokeRoundRect(rx1, startY - 10, rx2 - rx1, boxHeight + 20, 6, 6);
                 gc.setLineDashes(null);
                 
-                gc.setFill(Color.web("#8b5cf6"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 8));
+                gc.setFill(isGB ? theme.accent : Color.web("#8b5cf6"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 8, isGB));
                 gc.fillText("SORTED SUB-LIST", rx1 + 6, startY - 14);
 
                 if (step == 1) {
                     double arrowX = startX + boxWidth + boxWidth / 2.0;
                     double arrowYHead = startY - 4;
                     double arrowYTail = startY - 18;
-                    gc.setStroke(Color.web("#8b5cf6"));
+                    gc.setStroke(isGB ? theme.accent : Color.web("#8b5cf6"));
                     gc.setLineWidth(2.0);
                     gc.strokeLine(arrowX, arrowYTail, arrowX, arrowYHead);
                     gc.strokeLine(arrowX - 3, arrowYHead - 3, arrowX, arrowYHead);
@@ -3825,10 +3930,10 @@ public class ChromaCascadeApp extends Application {
                     double h = 65;
 
                     boolean isSorted = insertionGreen[i];
-                    Color col = isSorted ? Color.web("#10b981") : Color.web("#334155");
+                    Color col = isSorted ? (isGB ? theme.sorted : Color.web("#10b981")) : (isGB ? theme.unsorted : Color.web("#334155"));
 
                     if (i == 2 && !isSorted) {
-                        col = Color.web("#8b5cf6");
+                        col = isGB ? theme.accent : Color.web("#8b5cf6");
                     }
 
                     gc.setFill(col);
@@ -3836,14 +3941,14 @@ public class ChromaCascadeApp extends Application {
                     gc.setStroke(col.deriveColor(0, 1, 1.2, 1));
                     gc.strokeRoundRect(x, y, w, h, 6, 6);
 
-                    gc.setFill(Color.WHITE);
-                    gc.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+                    gc.setFill(isGB ? theme.bg : Color.WHITE);
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, 18, isGB));
                     gc.fillText(String.valueOf((int)insertionVals[i]), x + 22, y + 38);
                 }
 
                 if (insertionCursor != -1) {
                     double cursorX = insertionX[insertionCursor];
-                    gc.setStroke(Color.web("#f59e0b"));
+                    gc.setStroke(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.setLineWidth(2.5);
                     gc.strokeRoundRect(cursorX - 2, 60 - 2, 69, 69, 6, 6);
                 }
@@ -3855,17 +3960,17 @@ public class ChromaCascadeApp extends Application {
                 drawKeyCap(gc, 250, 145, "D", dPressed);
                 drawKeyCap(gc, 320, 145, "ENTER", enterPressed);
 
-                gc.setFill(Color.web("#94a3b8"));
-                gc.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 13));
+                gc.setFill(isGB ? theme.textMuted : Color.web("#94a3b8"));
+                gc.setFont(getThemeFont("Segoe UI", FontWeight.NORMAL, 13, isGB));
                 if (step == 0) {
                     gc.fillText("Press [D] to examine the active element 8 to insert.", 175, 195);
                 } else if (step == 1) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("8 < 12! Neighbor is larger. Press [ENTER] to shift 8 left.", 155, 195);
                 } else if (step == 2) {
                     gc.fillText("8 >= 5. Left neighbor is smaller or equal. Insertion position found.", 130, 195);
                 } else if (step == 3) {
-                    gc.setFill(Color.web("#f59e0b"));
+                    gc.setFill(isGB ? theme.accent : Color.web("#f59e0b"));
                     gc.fillText("Press [D] to lock element 8 into sorted sub-list.", 190, 195);
                 } else if (step == 4) {
                     gc.fillText("Active element is now 15. It is larger than 12, no shift needed.", 145, 195);

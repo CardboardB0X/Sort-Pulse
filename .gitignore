@@ -15,4 +15,8 @@ Thumbs.db
 *.project
 .settings/
 javafx_path.txt
+out/
+jar_input/
+dist/
+
 
