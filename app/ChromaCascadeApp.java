@@ -166,6 +166,7 @@ public class ChromaCascadeApp extends Application {
         btn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + fontSize + "; -fx-padding: 12px 30px; -fx-background-radius: 4px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1.5px; -fx-min-width: 280; -fx-cursor: hand;");
         
         btn.setOnMouseEntered(e -> {
+            SoundManager.playHover();
             String effect = isGB ? "" : " -fx-effect: dropshadow(three-pass-box, " + hoverHex + "4D, 8, 0, 0, 0);";
             btn.setStyle("-fx-background-color: " + hoverBg + "; -fx-text-fill: " + hoverText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + fontSize + "; -fx-padding: 12px 30px; -fx-background-radius: 4px; -fx-border-color: " + hoverBg + "; -fx-border-width: 1.5px; -fx-min-width: 280; -fx-cursor: hand;" + effect);
         });
@@ -212,7 +213,10 @@ public class ChromaCascadeApp extends Application {
         
         // Back Button
         backBtn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-padding: 10px 24px; -fx-background-radius: 4px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1.5px; -fx-cursor: hand;");
-        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: " + theme.textHex + "; -fx-text-fill: " + theme.bgHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-padding: 10px 24px; -fx-background-radius: 4px; -fx-border-color: " + theme.textHex + "; -fx-border-width: 1.5px; -fx-cursor: hand;"));
+        backBtn.setOnMouseEntered(e -> {
+            SoundManager.playHover();
+            backBtn.setStyle("-fx-background-color: " + theme.textHex + "; -fx-text-fill: " + theme.bgHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-padding: 10px 24px; -fx-background-radius: 4px; -fx-border-color: " + theme.textHex + "; -fx-border-width: 1.5px; -fx-cursor: hand;");
+        });
         backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: " + theme.panelBgHex + "; -fx-text-fill: " + theme.textHex + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-padding: 10px 24px; -fx-background-radius: 4px; -fx-border-color: " + theme.borderHex + "; -fx-border-width: 1.5px; -fx-cursor: hand;"));
 
         // HUD panel components
@@ -388,11 +392,9 @@ public class ChromaCascadeApp extends Application {
         public static void playSuccess(double pan) {
             new Thread(() -> {
                 try {
-                    playTone(523, 70, 0.15, pan); // C5
-                    Thread.sleep(70);
-                    playTone(659, 70, 0.15, pan); // E5
-                    Thread.sleep(70);
-                    playTone(784, 100, 0.15, pan); // G5
+                    playTone(988, 40, 0.15, pan);  // B5 (bright start)
+                    Thread.sleep(40);
+                    playTone(1318, 80, 0.15, pan); // E6 (chime finish)
                 } catch (InterruptedException e) {}
             }).start();
         }
@@ -403,20 +405,25 @@ public class ChromaCascadeApp extends Application {
 
         public static void playFailure(double pan) {
             new Thread(() -> {
-                playTone(150, 250, 0.20, pan); // Low buzz tone
+                try {
+                    // Rapid descending slide sweep
+                    for (int hz = 350; hz >= 100; hz -= 25) {
+                        playTone(hz, 15, 0.15, pan);
+                        Thread.sleep(15);
+                    }
+                } catch (InterruptedException e) {}
             }).start();
         }
 
         public static void playWaveClear() {
             new Thread(() -> {
                 try {
-                    playTone(523, 100, 0.15); // C5
-                    Thread.sleep(100);
-                    playTone(659, 100, 0.15); // E5
-                    Thread.sleep(100);
-                    playTone(784, 100, 0.15); // G5
-                    Thread.sleep(100);
-                    playTone(1046, 200, 0.20); // C6
+                    int[] notes = {523, 784, 523, 659, 784, 1046}; // C5, G5, C5, E5, G5, C6
+                    int[] durations = {80, 80, 80, 80, 80, 250};
+                    for (int i = 0; i < notes.length; i++) {
+                        playTone(notes[i], durations[i], 0.15);
+                        Thread.sleep(durations[i] - 10);
+                    }
                 } catch (InterruptedException e) {}
             }).start();
         }
@@ -443,6 +450,20 @@ public class ChromaCascadeApp extends Application {
             playTone(1200, 10, 0.08, pan); // Tiny high pitch click
         }
 
+        public static void playHover() {
+            playTone(1000, 8, 0.03); // Soft high pitch click for hovers
+        }
+
+        public static void playMenuSelect() {
+            new Thread(() -> {
+                try {
+                    playTone(600, 30, 0.12);
+                    Thread.sleep(30);
+                    playTone(900, 40, 0.12);
+                } catch (InterruptedException e) {}
+            }).start();
+        }
+
         private static Thread musicThread;
         private static boolean musicRunning = false;
 
@@ -450,12 +471,6 @@ public class ChromaCascadeApp extends Application {
             if (musicRunning) return;
             musicRunning = true;
             musicThread = new Thread(() -> {
-                int[][] progressions = {
-                    {220, 261, 329, 261}, // Am
-                    {196, 246, 293, 246}, // G
-                    {174, 220, 261, 220}, // F
-                    {164, 207, 246, 207}  // E
-                };
                 int chordIdx = 0;
 
                 try {
@@ -463,6 +478,51 @@ public class ChromaCascadeApp extends Application {
                         if (!model.getGameState().equalsIgnoreCase("PLAYING") || model.isGameOver()) {
                             try { Thread.sleep(100); } catch (InterruptedException e) { break; }
                             continue;
+                        }
+
+                        // Dynamically choose progression based on active algorithm
+                        String algo = model.getTargetAlgorithm();
+                        int[][] progressions;
+                        if (algo.equalsIgnoreCase("Bubble Sort")) {
+                            progressions = new int[][] {
+                                {261, 329, 392, 329}, // C
+                                {349, 440, 523, 440}, // F
+                                {392, 494, 587, 494}, // G
+                                {349, 440, 523, 440}  // F
+                            };
+                        } else if (algo.equalsIgnoreCase("Insertion Sort")) {
+                            progressions = new int[][] {
+                                {220, 220, 293, 293}, // Am - Dm shuffle
+                                {196, 196, 246, 246}, // G - B shuffle
+                                {220, 220, 293, 293},
+                                {329, 329, 329, 329}  // E transition
+                            };
+                        } else if (algo.equalsIgnoreCase("Quick Sort")) {
+                            progressions = new int[][] {
+                                {220, 261, 329, 392}, // Am7
+                                {293, 349, 440, 523}, // Dm7
+                                {329, 392, 494, 587}, // Em7
+                                {220, 261, 329, 392}
+                            };
+                        } else if (algo.equalsIgnoreCase("Merge Sort")) {
+                            progressions = new int[][] {
+                                {220, 329, 261, 392}, // Alternating low-high split
+                                {174, 261, 220, 329},
+                                {196, 293, 246, 369},
+                                {164, 246, 220, 329}
+                            };
+                        } else {
+                            // Selection Sort (Default)
+                            progressions = new int[][] {
+                                {220, 261, 329, 261}, // Am
+                                {196, 246, 293, 246}, // G
+                                {174, 220, 261, 220}, // F
+                                {164, 207, 246, 207}  // E
+                            };
+                        }
+
+                        if (chordIdx >= progressions.length) {
+                            chordIdx = 0;
                         }
 
                         int[] chord = progressions[chordIdx];
@@ -2596,12 +2656,14 @@ public class ChromaCascadeApp extends Application {
 
         Button backBtn = new Button("BACK TO MENU");
         backBtn.setOnAction(e -> {
+            SoundManager.playMenuSelect();
             rootContainer.getChildren().setAll(menuLayout);
         });
 
         leaderboardLayout.getChildren().addAll(lbTitle, columns, backBtn);
 
         leaderboardBtn.setOnAction(e -> {
+            SoundManager.playMenuSelect();
             refreshLeaderboard.run();
             rootContainer.getChildren().setAll(leaderboardLayout);
         });
@@ -2693,6 +2755,7 @@ public class ChromaCascadeApp extends Application {
 
         // Setup Mode Button actions to enter Play state
         selectionBtn.setOnAction(event -> {
+            SoundManager.playMenuSelect();
             showTutorialOverlay(rootContainer, "Selection Sort", model, () -> {
                 model.setTargetAlgorithm("Selection Sort");
                 model.setGameState("PLAYING");
@@ -2703,6 +2766,7 @@ public class ChromaCascadeApp extends Application {
         });
 
         quickBtn.setOnAction(event -> {
+            SoundManager.playMenuSelect();
             showTutorialOverlay(rootContainer, "Quick Sort", model, () -> {
                 model.setTargetAlgorithm("Quick Sort");
                 model.setGameState("PLAYING");
@@ -2713,6 +2777,7 @@ public class ChromaCascadeApp extends Application {
         });
 
         mergeBtn.setOnAction(event -> {
+            SoundManager.playMenuSelect();
             showTutorialOverlay(rootContainer, "Merge Sort", model, () -> {
                 model.setTargetAlgorithm("Merge Sort");
                 model.setGameState("PLAYING");
@@ -2723,6 +2788,7 @@ public class ChromaCascadeApp extends Application {
         });
 
         bubbleBtn.setOnAction(event -> {
+            SoundManager.playMenuSelect();
             showTutorialOverlay(rootContainer, "Bubble Sort", model, () -> {
                 model.setTargetAlgorithm("Bubble Sort");
                 model.setGameState("PLAYING");
@@ -2733,6 +2799,7 @@ public class ChromaCascadeApp extends Application {
         });
 
         insertionBtn.setOnAction(event -> {
+            SoundManager.playMenuSelect();
             showTutorialOverlay(rootContainer, "Insertion Sort", model, () -> {
                 model.setTargetAlgorithm("Insertion Sort");
                 model.setGameState("PLAYING");
@@ -2908,6 +2975,7 @@ public class ChromaCascadeApp extends Application {
 
         Button prevBtn = new Button("PREV STEP");
         prevBtn.setStyle("-fx-background-color: " + navBtnBg + "; -fx-text-fill: " + navBtnText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + navFontSize + "; -fx-padding: 8px 20px; -fx-background-radius: 5px; -fx-cursor: hand; -fx-border-color: " + navBtnBorder + "; -fx-border-width: 1px; -fx-border-radius: 5px;");
+        prevBtn.setOnMouseEntered(e -> SoundManager.playHover());
         
         Label stepLabel = new Label(String.format("Step 1 of %d", maxSteps));
         stepLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: " + (isGB ? "9px" : "13px") + "; -fx-text-fill: " + navBtnText + "; -fx-font-weight: bold; -fx-min-width: 100; -fx-alignment: center;");
@@ -2915,6 +2983,7 @@ public class ChromaCascadeApp extends Application {
 
         Button nextBtn = new Button("NEXT STEP");
         nextBtn.setStyle("-fx-background-color: " + navBtnBg + "; -fx-text-fill: " + navBtnText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + navFontSize + "; -fx-padding: 8px 20px; -fx-background-radius: 5px; -fx-cursor: hand; -fx-border-color: " + navBtnBorder + "; -fx-border-width: 1px; -fx-border-radius: 5px;");
+        nextBtn.setOnMouseEntered(e -> SoundManager.playHover());
 
         navBox.getChildren().addAll(prevBtn, stepLabel, nextBtn);
 
@@ -2951,7 +3020,10 @@ public class ChromaCascadeApp extends Application {
         String startTextCol = isGB ? theme.bgHex : "#ffffff";
         Button startBtn = new Button("START GAME");
         startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: " + startTextCol + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;");
-        startBtn.setOnMouseEntered(e -> startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: " + startTextCol + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;" + (isGB ? "" : " -fx-effect: dropshadow(three-pass-box, " + accentColor + "66, 8, 0, 0, 0);")));
+        startBtn.setOnMouseEntered(e -> {
+            SoundManager.playHover();
+            startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: " + startTextCol + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;" + (isGB ? "" : " -fx-effect: dropshadow(three-pass-box, " + accentColor + "66, 8, 0, 0, 0);"));
+        });
         startBtn.setOnMouseExited(e -> startBtn.setStyle("-fx-background-color: " + accentColor + "; -fx-text-fill: " + startTextCol + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-cursor: hand;"));
 
         String backBg = isGB ? theme.panelBgHex : "#1e293b";
@@ -2961,7 +3033,10 @@ public class ChromaCascadeApp extends Application {
         String backHoverText = isGB ? theme.bgHex : "#ffffff";
         Button backBtn = new Button("BACK");
         backBtn.setStyle("-fx-background-color: " + backBg + "; -fx-text-fill: " + backText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + backBorder + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;");
-        backBtn.setOnMouseEntered(e -> backBtn.setStyle("-fx-background-color: " + backHoverBg + "; -fx-text-fill: " + backHoverText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + backHoverBg + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;"));
+        backBtn.setOnMouseEntered(e -> {
+            SoundManager.playHover();
+            backBtn.setStyle("-fx-background-color: " + backHoverBg + "; -fx-text-fill: " + backHoverText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + backHoverBg + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;");
+        });
         backBtn.setOnMouseExited(e -> backBtn.setStyle("-fx-background-color: " + backBg + "; -fx-text-fill: " + backText + "; -fx-font-family: " + fontFam + "; -fx-font-weight: bold; -fx-font-size: " + startFontSize + "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + backBorder + "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;"));
 
         btnBox.getChildren().addAll(startBtn, backBtn);
@@ -3989,12 +4064,14 @@ public class ChromaCascadeApp extends Application {
         };
         
         startBtn.setOnAction(event -> {
+            SoundManager.playMenuSelect();
             tutorialTimer.stop();
             root.getChildren().remove(overlay);
             onStartGame.run();
         });
 
         backBtn.setOnAction(event -> {
+            SoundManager.playMenuSelect();
             tutorialTimer.stop();
             root.getChildren().remove(overlay);
         });
