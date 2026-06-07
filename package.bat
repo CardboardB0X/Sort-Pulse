@@ -13,7 +13,7 @@ if "%JFX_PATH%"=="" (
 )
 if "%JFX_PATH%"=="" (
     echo [Sort Pulse] JavaFX SDK path not detected.
-    echo Please enter the absolute path to your JavaFX SDK directory (containing 'lib' folder):
+    echo Please enter the absolute path to your JavaFX SDK directory containing 'lib' folder:
     set /p JFX_PATH="Path: "
 )
 set JFX_PATH=%JFX_PATH:"=%

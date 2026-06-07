@@ -2192,7 +2192,10 @@ public class ChromaCascadeApp extends Application {
                 view.spawnParticles(px, py, model.getTheme().sorted, 25);
                 
                 if (currentStepIdx + 1 < steps.size()) {
-                    model.setActiveSegmentCursor(steps.get(currentStepIdx + 1).startIndex);
+                    String algo = model.getTargetAlgorithm();
+                    if (algo.equalsIgnoreCase("Selection Sort") || algo.equalsIgnoreCase("Quick Sort") || algo.equalsIgnoreCase("Merge Sort")) {
+                        model.setActiveSegmentCursor(steps.get(currentStepIdx + 1).startIndex);
+                    }
                 }
                 
                 // Award points for step and spawn floating texts
@@ -2238,7 +2241,10 @@ public class ChromaCascadeApp extends Application {
                     view.spawnFloatingText(px, py - 20, "TRY AGAIN!", Color.web("#ef4444"));
                 }
                 
-                model.setActiveSegmentCursor(step.startIndex);
+                String algo = model.getTargetAlgorithm();
+                if (algo.equalsIgnoreCase("Selection Sort") || algo.equalsIgnoreCase("Quick Sort") || algo.equalsIgnoreCase("Merge Sort")) {
+                    model.setActiveSegmentCursor(step.startIndex);
+                }
             }
         }
 
