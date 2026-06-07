@@ -65,6 +65,14 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
+echo Copying JavaFX native DLLs to portable runtime...
+copy "%JFX_PATH%\bin\*.dll" "dist\SortPulse\runtime\bin\"
+if %errorlevel% neq 0 (
+    echo Copying JavaFX native DLLs failed.
+    pause
+    exit /b %errorlevel%
+)
+
 rem Build native Windows setup installer (.exe wizard)
 echo Building Windows installer (.exe setup)...
 jpackage --type exe --input jar_input --dest dist --name "SortPulseInstaller" --main-jar sort-pulse.jar --module-path "%JFX_PATH%\lib" --add-modules javafx.controls,javafx.graphics --win-dir-chooser --win-shortcut
