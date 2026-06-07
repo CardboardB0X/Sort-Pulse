@@ -1,50 +1,50 @@
 # Sort Pulse 🎮
 
-**Sort Pulse** is an intense, timed arcade puzzle game and interactive algorithm trainer. Players race against the clock to sort randomized block grids using real-world sorting algorithms: **Selection Sort**, **Quick Sort**, and **Merge Sort**.
+**Sort Pulse** is an intense, timed arcade puzzle game and interactive algorithm trainer. Players race against the clock to sort randomized block grids using real-world sorting algorithms: **Selection Sort**, **Bubble Sort**, **Insertion Sort**, **Quick Sort**, and **Merge Sort**.
 
-This repository contains the complete codebase, launch scripts, and persistent high score leaderboards for the game.
+This repository contains the complete codebase, launch scripts, font assets, and packaging utilities to run the game as a standalone native desktop application.
 
 ---
 
 ## 📸 Key Features
 
-* **Three Unique Algorithm Modes:** Manually drive the step-by-step logic of Selection, Quick, and Merge Sort.
+* **Five Unique Algorithm Modes:** Manually drive the step-by-step logic of Selection, Bubble, Insertion, Quick, and Merge Sort.
+* **Dual Aesthetics & Theme Engine:** Toggle between the vibrant **Classic Neon** (default) or the retro **GameBoy Retro** (desaturated DMG LCD color palette with grayscale anti-aliasing for crisp text).
+* **Tutorial Overlay Visual Guides:** Interactive, step-by-step animated previews for all five algorithms to help players learn the mechanics before starting.
 * **Practice Mode:** Train with zero timer pressure or penalty calculations.
 * **Combo Multiplier System:** Stack consecutive correct moves to trigger score multipliers and pulsing visual indicators.
-* **Juicy Particles & Confetti:** Vector physics particle bursts erupting on correct/incorrect actions, plus falling confetti cascades on wave completion.
-* **Smooth Interpolated Animations:** Blocks glide dynamically when swapped, shifted, or split between layout levels.
-* **Procedural Synth Soundtrack:** An 8-bit background chiptune track synthesized entirely in code at runtime. Melodic pacing speeds up dynamically under time pressure.
-* **Local High Score Leaderboards:** Saves and displays top 5 runs for each algorithm mode locally in `sort_pulse_scores.txt`.
-* **OS Native Launchers:** Single-click startup scripts (`run.bat` / `run.sh`) that auto-compile and run the game.
+* **Juicy Vector Particle Engine:** Custom physics particle bursts erupting on correct/incorrect actions, plus falling confetti cascades on wave completion.
+* **Procedural Synth Soundtrack:** An 8-bit background chiptune track synthesized entirely in code at runtime. Melodic pacing and tempo speed up dynamically under time pressure.
+* **High Score Leaderboard:** Automatically saves and displays top 5 runs for each algorithm mode locally in `sort_pulse_scores.txt`.
+* **Crisp Font Rendering:** Enforces integer-size loading and caching for pixel-art fonts ("Press Start 2P") to prevent high-DPI scaling blurriness.
+* **One-Click Native Executable:** Standalone packaging script that bundles a custom JRE and JavaFX modules, allowing click-and-play without external JDK installations.
 
 ---
 
-## 🧰 Prerequisites
+## 🧰 Prerequisites (For Building from Source)
 
-To compile and run Sort Pulse, you need:
+If you wish to compile and run the source code directly:
 
 | Prerequisite | Recommended Version |
 |---|---|
-| **Java Development Kit (JDK)** | Version **21 or higher** |
-| **OpenJFX (JavaFX SDK)** | Version **21 or higher** (e.g. 25.0.1) |
+| **Java Development Kit (JDK)** | Version **21 or higher** (JDK 25.0.2 recommended) |
+| **OpenJFX (JavaFX SDK)** | Version **21 or higher** (JavaFX SDK 25.0.1 recommended) |
 
-> **JavaFX SDK Download:** Get the appropriate SDK zip package for your OS from [Gluon OpenJFX](https://gluonhq.com/products/javafx/).
+> **JavaFX SDK Download:** Get the SDK zip package matching your OS from [Gluon OpenJFX](https://gluonhq.com/products/javafx/). Extract it to a path of your choice.
 
 ---
 
-## 🚀 Easy Launch Setup
+## 🚀 Compilation & Launch Setup
 
-To run the game instantly, use the launch scripts in the root directory:
-
-### 🪟 Windows (Batch Launcher)
+### 🪟 Windows (Quick Run)
 1. Double-click `run.bat` or run it from command line:
    ```cmd
    run.bat
    ```
-2. If it's your first run, the script will prompt you to input the absolute path to your JavaFX SDK folder (e.g., `C:\javafx-sdk-25.0.1`). It saves this to `javafx_path.txt` so future launches run automatically.
+2. On first run, the script will prompt you to enter the absolute path to your JavaFX SDK folder (e.g., `C:\javafx-sdk-25.0.1`). It saves this to `javafx_path.txt` so subsequent launches run instantly.
 
-### 🐧 macOS / Linux (Shell Launcher)
-1. Give execute permissions:
+### 🐧 macOS / Linux (Quick Run)
+1. Give execute permissions to the shell script:
    ```bash
    chmod +x run.sh
    ```
@@ -53,6 +53,23 @@ To run the game instantly, use the launch scripts in the root directory:
    ./run.sh
    ```
 3. Enter your JavaFX SDK path when prompted.
+
+---
+
+## 📦 Standalone Packaging (Build Native EXE)
+
+Sort Pulse includes a `package.bat` script that uses `jlink` and `jpackage` to compile and package the game into a self-contained portable Windows application.
+
+1. Ensure you have the **JDK** and **JavaFX SDK** paths set.
+2. Run the packaging utility:
+   ```cmd
+   package.bat
+   ```
+3. This creates a directory under `dist/SortPulse/` containing:
+   * **`SortPulse.exe`**: A native launcher executable.
+   * **`runtime/`**: A stripped-down, lightweight Java Runtime (JRE).
+   * **`app/`**: Application class libraries and bundled resources.
+4. Distribute the `SortPulse` folder to any Windows computer—it will run with a single click, requiring no Java setup!
 
 ---
 
@@ -73,15 +90,15 @@ graph TD
 ```
 
 #### 1. Timed Blitz Mode
-* You start with a limited clock (20s for Selection Sort, 40s for Quick/Merge Sort).
-* Correct steps extend the timer (`+10s` for Selection/Quick, `+30s` for Merge Sort).
+* You start with a limited clock (20s for Selection Sort, 40s for Quick/Merge/Bubble/Insertion).
+* Correct steps extend the timer (`+10s` for Selection, `+15s` for Bubble/Insertion/Quick, and `+30s` for Merge Sort).
 * Incorrect steps subtract `-3s` from the timer and deduct `-25 points`.
 * The game ends when the timer hits zero.
 
 #### 2. Practice Mode
 * Enable this by checking the **PRACTICE MODE (NO TIMER)** box on the main menu.
 * The timer displays **PRACTICE** and will not count down.
-* All time and score penalties on incorrect actions are disabled, letting you learn at your own pace.
+* All time and score penalties on incorrect actions are disabled, letting you learn the algorithm at your own pace.
 
 ---
 
@@ -112,6 +129,17 @@ graph TD
 #### 🟢 Selection Sort (Ascending)
 * **Objective:** Find the smallest element in the unsorted portion of the array and move it to the front.
 * **How to play:** Move the selection cursor to the **minimum** unsorted element (the active range is indicated by a dashed boundary box) and press `ENTER` to shift it to its correct sorted index.
+* **Auto-Move Assist:** The cursor automatically snaps to the beginning of the next unsorted subarray.
+
+#### 🔴 Bubble Sort (Ascending)
+* **Objective:** Scan the unsorted subarray partition from left to right, swapping adjacent elements if they are out of order.
+* **How to play:** Identify adjacent elements within the active partition (dashed boundary box) that are out of order. Manually move the cursor to the left element of the pair and press `ENTER` to swap them. 
+* **Challenge Constraint:** The active boundary box covers the entire unsorted partition, meaning the game does not highlight the exact pair to swap. Auto-cursor snapping is disabled; players must manually traverse using `[A]` / `[D]`.
+
+#### 🟣 Insertion Sort (Ascending)
+* **Objective:** Insert unsorted elements into their correct sorted position inside the left subarray.
+* **How to play:** The cursor starts on the next unsorted element. Shift it leftward through the sorted subsegment by pressing `ENTER` until it is in its correct sorted position.
+* **Challenge Constraint:** Auto-cursor snapping is disabled; players must manually track and move the cursor to follow the shifting element or navigate to the next target.
 
 #### 🟡 Quick Sort (Ascending - Lomuto Partition)
 * **Objective:** Partition elements around a pivot.
@@ -142,6 +170,7 @@ Sort Pulse utilizes a single-file, highly modular **Model-View-Controller (MVC)*
   * **Particle Engine** which simulates and draws active physics particle vectors.
 * **Controller (`ChromaCascadeController`):** Listens to keyboard inputs, evaluates player actions against pre-computed algorithm traces, generates new randomized waves, and manages state transitions.
 * **Audio (`SoundManager`):** Generates retro synthesizer tones using standard Java audio APIs (`javax.sound.sampled`). Runs a background **daemon music thread** generating an arpeggiated bassline progression that scales tempo dynamically based on the model's timer.
+* **Fonts Caching**: Loads the custom `PressStart2P` pixel font directly from classpath resources (`ChromaCascadeApp.class.getResourceAsStream`) and registers it in JavaFX exactly once. Sub-pixel anti-aliasing is overridden with grayscale smoothing in GameBoy Retro mode to keep pixel rendering crisp at high resolutions.
 
 ---
 
@@ -150,8 +179,9 @@ Sort Pulse utilizes a single-file, highly modular **Model-View-Controller (MVC)*
 If you want to modify parameters or customize the game engine, edit these values in `app/ChromaCascadeApp.java`:
 
 ### 📏 Wave Sizes and Grid Lengths
-In `ChromaCascadeController.spawnNewPuzzleSet()` (around line 1400):
+In `ChromaCascadeController.spawnNewPuzzleSet()` (around line 2016):
 ```java
+int completed = model.getCompletedWavesCount();
 int length = Math.min(12, 8 + completed / 4);
 ```
 * **8:** Starting block length of waves.
@@ -159,11 +189,11 @@ int length = Math.min(12, 8 + completed / 4);
 * Change these to increase or decrease puzzle difficulty as the player progresses.
 
 ### ⏱️ Initial Mode Countdown Times
-In `ChromaCascadeController.initializeGame()` (around line 1280):
+In `ChromaCascadeController.initializeGame()` (around line 1995):
 ```java
 int startingTime = model.getTargetAlgorithm().equalsIgnoreCase("Selection Sort") ? 20 : 40;
 ```
-* Modify `20` (Selection Sort) or `40` (Quick/Merge Sort) to tighten or loosen start timers.
+* Modify `20` (Selection Sort) or `40` (Quick/Merge/Bubble/Insertion Sort) to tighten or loosen start timers.
 
 ### 🎵 Background Music Progression
 In `SoundManager.startMusic()` (around line 140):
