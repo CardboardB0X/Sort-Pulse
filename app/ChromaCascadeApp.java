@@ -1070,8 +1070,8 @@ public class ChromaCascadeApp extends Application {
                         step.targetIndex = j + 1;
                         step.startIndex = j;
                         step.nextCursor = j;
-                        step.activeLeft = j;
-                        step.activeRight = j + 1;
+                        step.activeLeft = 0;
+                        step.activeRight = n - i - 1;
                         step.description = String.format("Swap adjacent elements (value %d and %d) at indices %d and %d.",
                                                          array[j].getRawValue(), array[j + 1].getRawValue(), j, j + 1);
 
