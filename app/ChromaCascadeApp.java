@@ -727,6 +727,7 @@ public class ChromaCascadeApp extends Application {
 
         // Visual freeze indicator forCompleted banner pop-up
         private int freezeFrames = 0;
+        private int startCountdown = -1; // -1 means inactive, 3, 2, 1, 0 are countdown states
 
         private String activeThemeName = "Classic Neon";
 
@@ -839,6 +840,14 @@ public class ChromaCascadeApp extends Application {
 
         public void setFreezeFrames(int freezeFrames) {
             this.freezeFrames = freezeFrames;
+        }
+
+        public int getStartCountdown() {
+            return startCountdown;
+        }
+
+        public void setStartCountdown(int startCountdown) {
+            this.startCountdown = startCountdown;
         }
 
         public ObservableList<String> getMemoryRegisters() {
@@ -1393,7 +1402,6 @@ public class ChromaCascadeApp extends Application {
         // HUD elements
         private Label scoreValLabel;
         private Label timerValLabel;
-        private ProgressBar timerProgressBar;
         private Label metricsValLabel;
         private Label targetValLabel;
         private ListView<String> logListView;
@@ -1448,10 +1456,6 @@ public class ChromaCascadeApp extends Application {
 
         public void setTimerValLabel(Label timerValLabel) {
             this.timerValLabel = timerValLabel;
-        }
-
-        public void setTimerProgressBar(ProgressBar timerProgressBar) {
-            this.timerProgressBar = timerProgressBar;
         }
 
         public void setMetricsValLabel(Label metricsValLabel) {
@@ -1981,6 +1985,37 @@ public class ChromaCascadeApp extends Application {
                 }
             }
 
+            // Draw start countdown overlay
+            if (model.getStartCountdown() >= 0) {
+                // Semi-transparent overlay
+                gc.setFill(isGameBoy ? theme.panelBg.deriveColor(0, 1, 1, 0.4) : Color.web("#0b0f19", 0.65));
+                gc.fillRect(10, 10, canvas.getWidth() - 20, canvas.getHeight() - 20);
+
+                // Huge countdown text
+                gc.setFont(getThemeFont(isGameBoy ? "Courier New" : "Consolas", FontWeight.BOLD, isGameBoy ? 54 : 96, isGameBoy));
+                gc.setFill(theme.accent);
+                
+                String countdownText = model.getStartCountdown() == 0 ? "GO!" : String.valueOf(model.getStartCountdown());
+                
+                // Centering the text on the canvas
+                double fontSize = isGameBoy ? 54 : 96;
+                double charW = fontSize * 0.6;
+                double textW = charW * countdownText.length();
+                double textX = (canvas.getWidth() - textW) / 2.0;
+                double textY = (canvas.getHeight() + fontSize * 0.75) / 2.0;
+                
+                gc.fillText(countdownText, textX, textY);
+                
+                // Draw a smaller "GET READY" text above it
+                if (model.getStartCountdown() > 0) {
+                    gc.setFont(getThemeFont("Segoe UI", FontWeight.BOLD, isGameBoy ? 10 : 20, isGameBoy));
+                    gc.setFill(theme.text);
+                    String msg = "GET READY";
+                    double msgW = msg.length() * (isGameBoy ? 7 : 12);
+                    gc.fillText(msg, (canvas.getWidth() - msgW) / 2.0, textY - (isGameBoy ? 45 : 85));
+                }
+            }
+
         }
 
         public void updateHUD() {
@@ -2023,32 +2058,6 @@ public class ChromaCascadeApp extends Application {
                     }
                 }
             }
-            if (timerProgressBar != null) {
-                if (model.isPracticeMode()) {
-                    timerProgressBar.setVisible(false);
-                } else {
-                    timerProgressBar.setVisible(true);
-                    double maxTime = 20.0;
-                    String targetAlgo = model.getTargetAlgorithm();
-                    if (targetAlgo.equalsIgnoreCase("Quick Sort") || targetAlgo.equalsIgnoreCase("Merge Sort")) {
-                        maxTime = 40.0;
-                    } else if (targetAlgo.equalsIgnoreCase("Bubble Sort") || targetAlgo.equalsIgnoreCase("Insertion Sort")) {
-                        maxTime = 30.0;
-                    }
-                    double progress = (double) model.getCountdownTimer() / maxTime;
-                    timerProgressBar.setProgress(Math.min(1.0, Math.max(0.0, progress)));
-                    
-                    String barColor = theme.accentHex;
-                    if (model.getCountdownTimer() <= 5) {
-                        barColor = "#f43f5e"; // Red alert color
-                    }
-                    if (isGB) {
-                        timerProgressBar.setStyle("-fx-accent: " + theme.accentHex + "; -fx-control-inner-background: " + theme.panelBgHex + "; -fx-text-box-border: " + theme.borderHex + "; -fx-background-radius: 0px;");
-                    } else {
-                        timerProgressBar.setStyle("-fx-accent: " + barColor + "; -fx-control-inner-background: #1e293b; -fx-text-box-border: transparent; -fx-background-radius: 4px;");
-                    }
-                }
-            }
             if (targetValLabel != null) {
                 String modeLabelStr = "MODE: " + model.getTargetAlgorithm().toUpperCase();
                 if (model.isPracticeMode()) {
@@ -2083,6 +2092,7 @@ public class ChromaCascadeApp extends Application {
         public void initializeGame() {
             model.setScore(0);
             model.setCompletedWavesCount(0);
+            model.setStartCountdown(3);
             
             int startingTime = 20;
             String targetAlgo = model.getTargetAlgorithm();
@@ -2719,17 +2729,11 @@ public class ChromaCascadeApp extends Application {
         timerVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f59e0b; -fx-font-weight: bold;");
         view.setTimerValLabel(timerVal);
 
-        ProgressBar timerProgress = new ProgressBar(1.0);
-        timerProgress.setPrefWidth(220);
-        timerProgress.setPrefHeight(8);
-        timerProgress.setStyle("-fx-accent: #f59e0b; -fx-control-inner-background: #1e293b; -fx-text-box-border: transparent; -fx-background-radius: 4px;");
-        view.setTimerProgressBar(timerProgress);
-
         Label scoreVal = new Label("SCORE: 00000");
         scoreVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 16px; -fx-text-fill: #ffffff; -fx-font-weight: bold;");
         view.setScoreValLabel(scoreVal);
 
-        topHud.getChildren().addAll(modeLabel, timerVal, timerProgress, scoreVal);
+        topHud.getChildren().addAll(modeLabel, timerVal, scoreVal);
 
         // Center Canvas Wrapper
         StackPane canvasWrapper = new StackPane();
@@ -2862,6 +2866,10 @@ public class ChromaCascadeApp extends Application {
                 }
             } else {
                 if (model.getGameState().equalsIgnoreCase("PLAYING") || model.getGameState().equalsIgnoreCase("GAME_OVER")) {
+                    if (model.getStartCountdown() >= 0) {
+                        event.consume();
+                        return;
+                    }
                     if (System.currentTimeMillis() - lastGameStartTime < 200) {
                         event.consume();
                         return;
@@ -2874,6 +2882,7 @@ public class ChromaCascadeApp extends Application {
         // Animation Timer Heartbeat Loop
         AnimationTimer loop = new AnimationTimer() {
             private long lastTimerTickTime = 0;
+            private long lastCountdownTickTime = 0;
 
             @Override
             public void handle(long now) {
@@ -2885,6 +2894,32 @@ public class ChromaCascadeApp extends Application {
                     view.draw();
                     view.updateHUD();
                     return;
+                }
+
+                // Handle the 3-2-1 countdown before game starts
+                if (model.getStartCountdown() >= 0) {
+                    if (lastCountdownTickTime == 0) {
+                        lastCountdownTickTime = now;
+                    }
+                    long elapsedCountdown = now - lastCountdownTickTime;
+                    long limit = model.getStartCountdown() == 0 ? 500_000_000L : 1_000_000_000L; // 0.5s for GO!, 1.0s for numbers
+                    
+                    if (elapsedCountdown >= limit) {
+                        lastCountdownTickTime = now;
+                        model.setStartCountdown(model.getStartCountdown() - 1);
+                        if (model.getStartCountdown() == 0) {
+                            // play GO sound!
+                            SoundManager.playSuccess();
+                        } else if (model.getStartCountdown() > 0) {
+                            // play tick beep sound!
+                            SoundManager.playClick();
+                        }
+                    }
+                    view.draw();
+                    view.updateHUD();
+                    return; // block other game updates during countdown
+                } else {
+                    lastCountdownTickTime = 0;
                 }
 
                 // Core 1-second countdown clock decay
