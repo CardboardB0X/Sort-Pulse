@@ -43,6 +43,7 @@ import javax.sound.sampled.SourceDataLine;
 public class ChromaCascadeApp extends Application {
 
     private static ChromaCascadeController controllerInstance;
+    private static VBox activePauseOverlay = null;
 
     // --- Step Domain Class ---
     public static class SortingStep {
@@ -2759,7 +2760,7 @@ public class ChromaCascadeApp extends Application {
         HBox controlsBar = new HBox();
         controlsBar.setPadding(new Insets(10));
         controlsBar.setAlignment(Pos.CENTER);
-        Text controlGuide = new Text("CONTROLS: [A] Move Left | [D] Move Right | [ENTER] Select/Shift | [R] Restart | [ESC] Main Menu");
+        Text controlGuide = new Text("CONTROLS: [A] Move Left | [D] Move Right | [ENTER] Select/Shift | [R] Restart | [ESC] Pause");
         controlGuide.setFill(Color.web("#64748b"));
         controlGuide.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-style: italic; -fx-font-size: 11px;");
         controlsBar.getChildren().add(controlGuide);
@@ -2856,7 +2857,11 @@ public class ChromaCascadeApp extends Application {
         scene.setOnKeyPressed(event -> {
             KeyCode code = event.getCode();
             if (code == KeyCode.ESCAPE) {
-                if (model.getGameState().equalsIgnoreCase("PLAYING") || model.getGameState().equalsIgnoreCase("GAME_OVER")) {
+                if (model.getGameState().equalsIgnoreCase("PLAYING")) {
+                    showPauseOverlay(rootContainer, model, controller, menuLayout, gameLayout);
+                } else if (model.getGameState().equalsIgnoreCase("PAUSED")) {
+                    hidePauseOverlay(rootContainer, model, gameLayout);
+                } else if (model.getGameState().equalsIgnoreCase("GAME_OVER")) {
                     model.setGameState("MENU");
                     SoundManager.stopMusic();
                     rootContainer.getChildren().setAll(menuLayout);
@@ -2888,6 +2893,12 @@ public class ChromaCascadeApp extends Application {
             public void handle(long now) {
                 if (model.getGameState().equalsIgnoreCase("MENU")) {
                     return; // Skip loops while in menu
+                }
+
+                if (model.getGameState().equalsIgnoreCase("PAUSED")) {
+                    lastTimerTickTime = 0;
+                    lastCountdownTickTime = 0;
+                    return; // Freeze and skip ticks while paused
                 }
 
                 if (model.isGameOver()) {
@@ -3055,7 +3066,7 @@ public class ChromaCascadeApp extends Application {
             detailedPages[1] = "SORTING PROCESS - PASS 1:\n1. Scan the entire grey region to find the absolute minimum value (5).\n2. Move selection cursor to 5 and press [ENTER] to swap with target slot (index 0, containing 15).\n3. Result: [5 | 15, 8, 22, 12]";
             detailedPages[2] = "SORTING PROCESS - PASS 2:\n1. Unsorted region is now [15, 8, 22, 12]. Scan to find next minimum (8).\n2. Move cursor to 8 and press [ENTER] to swap with target slot (index 1, containing 15).\n3. Result: [5, 8 | 15, 22, 12]";
             detailedPages[3] = "SORTING PROCESS - PASS 3:\n1. Unsorted region is now [15, 22, 12]. Scan to find next minimum (12).\n2. Move cursor to 12 and press [ENTER] to swap with target slot (index 2, containing 15).\n3. Result: [5, 8, 12 | 22, 15]";
-            detailedPages[4] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [A]/[D]: Move Cursor Left/Right | [ENTER]: Select & Shift Element\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[4] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [A]/[D]: Move Cursor Left/Right | [ENTER]: Select & Shift Element\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Pause the match | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
             detailedPages[5] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N^2) | Avg: O(N^2) | Worst: O(N^2) (Always scans entire unsorted suffix)\n- Space Complexity: O(1) auxiliary (In-place sorting)\n- Stability: Unstable (Swapping elements can disrupt relative order of identical keys)\n- Core Logic: Linear search for min, swap to front, advance sorted boundary.";
         } else if (algorithm.equalsIgnoreCase("Quick Sort")) {
             detailedPageTitles[0] = "Core Rules";
@@ -3067,7 +3078,7 @@ public class ChromaCascadeApp extends Application {
             detailedPages[0] = "OBJECTIVE & CORE RULES:\n- Goal: Partition the active subarray around a pivot so that smaller/equal elements go left, and larger elements go right.\n- Concept: The rightmost element is the orange PIVOT. The orange TARGET arrow marks the boundary for elements <= pivot.";
             detailedPages[1] = "SORTING PROCESS - PARTITION SCAN:\n1. Scan elements from left to right, comparing each with Pivot (10).\n2. If element <= Pivot: Press [ENTER] to swap to the TARGET slot (indicated by orange arrow).\n3. Scan 12 > 10 (skip), 18 > 10 (skip), scan 5 <= 10 -> swap 5 with index 0.";
             detailedPages[2] = "SORTING PROCESS - PIVOT SWAP:\n1. Continue scan: 15 > 10 (skip). Scan complete.\n2. Finally, swap the Pivot (10) into the final target slot boundary (index 1, containing 18).\n3. Result: [5, 10 | 12, 15, 18]. Pivot 10 is now locked in green.";
-            detailedPages[3] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [A]/[D]: Move Cursor Left/Right | [ENTER]: Swap element <= pivot, or swap pivot\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[3] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [A]/[D]: Move Cursor Left/Right | [ENTER]: Swap element <= pivot, or swap pivot\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Pause the match | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
             detailedPages[4] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N log N) | Avg: O(N log N) | Worst: O(N^2) (Poor pivot selection, e.g., already sorted)\n- Space Complexity: O(log N) stack depth (Recursive calls)\n- Stability: Unstable (Swapping pivot can change relative order of identical elements)\n- Core Logic: Divide & conquer. Partition elements around pivot, recursively sort partitions.";
         } else if (algorithm.equalsIgnoreCase("Bubble Sort")) {
             detailedPageTitles[0] = "Core Rules";
@@ -3079,7 +3090,7 @@ public class ChromaCascadeApp extends Application {
             detailedPages[0] = "OBJECTIVE & CORE RULES:\n- Goal: Compare adjacent elements and swap if they are out of order. Repeat until sorted.\n- Concept: A flashing cursor frame spans two adjacent elements. It bubbles the largest elements to the end of the unsorted segment.";
             detailedPages[1] = "SORTING PROCESS - CASE A (SKIP):\n1. Compare adjacent elements under the flashing frame: 8 vs 15.\n2. Since 8 <= 15, they are in correct relative order.\n3. Press [D] to skip swapping and advance frame to next pair.";
             detailedPages[2] = "SORTING PROCESS - CASE B (SWAP):\n1. Frame is at 15 vs 5. Since 15 > 5, they are out of order.\n2. Press [ENTER] to swap them -> array becomes [8, 5, 15, 12, 10].\n3. Continue bubbling 15 to the end. It will lock green.";
-            detailedPages[3] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [D]: Skip swap & advance frame | [ENTER]: Swap the two adjacent elements\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[3] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [D]: Skip swap & advance frame | [ENTER]: Swap the two adjacent elements\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Pause the match | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
             detailedPages[4] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N) (Optimized with early exit flag) | Avg: O(N^2) | Worst: O(N^2)\n- Space Complexity: O(1) auxiliary (In-place)\n- Stability: Stable (Does not swap equal elements, preserving original order)\n- Core Logic: Repeated adjacent comparison and swap passes, bubbling largest value to end.";
         } else if (algorithm.equalsIgnoreCase("Insertion Sort")) {
             detailedPageTitles[0] = "Core Rules";
@@ -3091,7 +3102,7 @@ public class ChromaCascadeApp extends Application {
             detailedPages[0] = "OBJECTIVE & CORE RULES:\n- Goal: Insert each new element into its proper position relative to the sorted prefix on the left.\n- Concept: The sorted prefix on the left is outlined by a dashed box. The cursor highlights the active element to insert.";
             detailedPages[1] = "SORTING PROCESS - SHIFT LEFT:\n1. Active element is 8 at index 2. Left neighbor is 12.\n2. Compare active (8) < left neighbor (12).\n3. Since 8 < 12, press [ENTER] to swap active element leftward. Array becomes: [5, 8, 12, 15, 10]";
             detailedPages[2] = "SORTING PROCESS - POSITION FOUND:\n1. Active element 8 is now at index 1. Left neighbor is 5.\n2. Compare active (8) >= left neighbor (5). Insertion position found.\n3. Press [D] to lock prefix [5, 8, 12] in green and advance.";
-            detailedPages[3] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [ENTER]: Swap active element leftward | [D]: Finalize position & move to next item\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[3] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [ENTER]: Swap active element leftward | [D]: Finalize position & move to next item\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Pause the match | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
             detailedPages[4] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N) (Already sorted) | Avg: O(N^2) | Worst: O(N^2) (Reversed array)\n- Space Complexity: O(1) auxiliary (In-place)\n- Stability: Stable (Does not swap past equal elements, preserving original order)\n- Core Logic: Take active element and shift leftward until its correct position is found.";
         } else {
             detailedPageTitles[0] = "Core Rules";
@@ -3105,7 +3116,7 @@ public class ChromaCascadeApp extends Application {
             detailedPages[1] = "SORTING PROCESS - COMPARE HEADS:\n1. Compare HEAD A (5) vs HEAD B (3).\n2. Since 3 < 5, select HEAD B (3) using [A]/[D] and press [ENTER] to merge it down.\n3. Output array first slot becomes 3.";
             detailedPages[2] = "SORTING PROCESS - MERGE HEAD:\n1. New heads: HEAD A (5) vs HEAD B (10).\n2. Since 5 < 10, select HEAD A (5) and press [ENTER] to merge it down.\n3. Output array becomes [3, 5].";
             detailedPages[3] = "SORTING PROCESS - FINALIZE:\n1. New heads: HEAD A (15) vs HEAD B (10). Merge HEAD B (10) -> Output: [3, 5, 10].\n2. Subarray B is empty. Select remaining HEAD A (15) and merge it.\n3. Result: [3, 5, 10, 15] is fully merged.";
-            detailedPages[4] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [A]/[D]: Move cursor between HEAD A and HEAD B | [ENTER]: Shift selected head to output\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Go back to the main menu | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
+            detailedPages[4] = "KEYBOARD CONTROLS & SHORTCUTS:\n- [A]/[D]: Move cursor between HEAD A and HEAD B | [ENTER]: Shift selected head to output\n- [R]: Restart current puzzle wave immediately if you make a mistake\n- [ESC]: Pause the match | [LEFT]/[RIGHT] or [A]/[D]: Navigate tutorial slides";
             detailedPages[5] = "COMPLEXITY & CODE LOGIC:\n- Time Complexity: Best: O(N log N) | Avg: O(N log N) | Worst: O(N log N) (Guaranteed performance)\n- Space Complexity: O(N) auxiliary space (Requires buffer for merging subarrays)\n- Stability: Stable (Maintains relative order of equal elements during merge)\n- Core Logic: Divide array in half recursively, merge sorted halves back together.";
         }
 
@@ -5502,7 +5513,157 @@ public class ChromaCascadeApp extends Application {
         
         tutorialTimer.start();
     }
-    
+
+    private static void setupButtonHover(Button btn, String normalBg, String normalText, String normalBorder,
+                                         String hoverBg, String hoverText, String hoverBorder,
+                                         boolean isGB, String fontFam, String fontSize, boolean hasGlow, String accentColor) {
+        btn.setStyle("-fx-background-color: " + normalBg + 
+                     "; -fx-text-fill: " + normalText + 
+                     "; -fx-font-family: " + fontFam + 
+                     "; -fx-font-weight: bold; -fx-font-size: " + fontSize + 
+                     "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + normalBorder + 
+                     "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;");
+        btn.setOnMouseEntered(e -> {
+            SoundManager.playHover();
+            String glowStyle = (isGB || !hasGlow) ? "" : " -fx-effect: dropshadow(three-pass-box, " + accentColor + "66, 8, 0, 0, 0);";
+            btn.setStyle("-fx-background-color: " + hoverBg + 
+                         "; -fx-text-fill: " + hoverText + 
+                         "; -fx-font-family: " + fontFam + 
+                         "; -fx-font-weight: bold; -fx-font-size: " + fontSize + 
+                         "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + hoverBorder + 
+                         "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;" + glowStyle);
+        });
+        btn.setOnMouseExited(e -> {
+            btn.setStyle("-fx-background-color: " + normalBg + 
+                         "; -fx-text-fill: " + normalText + 
+                         "; -fx-font-family: " + fontFam + 
+                         "; -fx-font-weight: bold; -fx-font-size: " + fontSize + 
+                         "; -fx-padding: 12px 35px; -fx-background-radius: 6px; -fx-border-color: " + normalBorder + 
+                         "; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-cursor: hand;");
+        });
+    }
+
+    private static void showPauseOverlay(StackPane root, ChromaCascadeModel model, ChromaCascadeController controller, VBox menuLayout, VBox gameLayout) {
+        if (activePauseOverlay != null) {
+            return;
+        }
+
+        model.setGameState("PAUSED");
+
+        Theme theme = model.getTheme();
+        boolean isGB = theme.name.equalsIgnoreCase("GameBoy Retro");
+        String fontFam = isGB && isCustomFontLoaded ? "'Press Start 2P'" : (isGB ? "'Courier New'" : "'Segoe UI', sans-serif");
+
+        VBox overlay = new VBox(20);
+        overlay.setAlignment(Pos.CENTER);
+        overlay.setStyle("-fx-background-color: " + (isGB ? "rgba(202, 220, 159, 0.95)" : "rgba(11, 15, 25, 0.85)") + ";");
+
+        // The card panel
+        VBox card = new VBox(25);
+        card.setAlignment(Pos.CENTER);
+        card.setPadding(new Insets(30, 40, 30, 40));
+        card.setMaxWidth(450);
+        card.setStyle("-fx-background-color: " + theme.panelBgHex + 
+                      "; -fx-border-color: " + theme.borderHex + 
+                      "; -fx-border-width: 2px; -fx-background-radius: 8px; -fx-border-radius: 8px;");
+
+        Label pauseTitle = new Label("GAME PAUSED");
+        if (isGB) {
+            pauseTitle.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + ";");
+        } else {
+            pauseTitle.setStyle("-fx-font-family: 'Segoe UI', 'Outfit', sans-serif; -fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: " + theme.accentHex + 
+                                "; -fx-effect: dropshadow(three-pass-box, " + theme.accentHex + "66, 12, 0, 0, 0);");
+        }
+
+        VBox buttonContainer = new VBox(15);
+        buttonContainer.setAlignment(Pos.CENTER);
+
+        Button resumeBtn = new Button("RESUME");
+        Button restartBtn = new Button("RESTART");
+        Button leaveBtn = new Button("LEAVE");
+
+        String normalBg = isGB ? theme.panelBgHex : "#1e293b";
+        String normalText = isGB ? theme.textHex : "#f8fafc";
+        String normalBorder = isGB ? theme.borderHex : "#334155";
+        
+        String hoverBg = isGB ? theme.textHex : theme.accentHex;
+        String hoverText = isGB ? theme.bgHex : "#ffffff";
+        String hoverBorder = isGB ? theme.textHex : theme.accentHex;
+
+        setupButtonHover(resumeBtn, normalBg, normalText, normalBorder, hoverBg, hoverText, hoverBorder, isGB, fontFam, isGB ? "9px" : "14px", true, theme.accentHex);
+        setupButtonHover(restartBtn, normalBg, normalText, normalBorder, isGB ? theme.textHex : "#3b82f6", hoverText, isGB ? theme.textHex : "#3b82f6", isGB, fontFam, isGB ? "9px" : "14px", true, "#3b82f6");
+        setupButtonHover(leaveBtn, normalBg, normalText, normalBorder, isGB ? theme.textHex : "#ef4444", hoverText, isGB ? theme.textHex : "#ef4444", isGB, fontFam, isGB ? "9px" : "14px", true, "#ef4444");
+
+        resumeBtn.setOnAction(e -> {
+            SoundManager.playMenuSelect();
+            hidePauseOverlay(root, model, gameLayout);
+        });
+
+        restartBtn.setOnAction(e -> {
+            SoundManager.playMenuSelect();
+            root.getChildren().remove(overlay);
+            activePauseOverlay = null;
+            model.setGameState("PLAYING");
+            controller.initializeGame();
+            gameLayout.requestFocus();
+        });
+
+        leaveBtn.setOnAction(e -> {
+            SoundManager.playMenuSelect();
+            // Swap with leave confirmation dialog
+            buttonContainer.getChildren().clear();
+
+            Label confirmLabel = new Label("Are you sure you want to leave?\nAll current wave progress will be lost.");
+            confirmLabel.setAlignment(Pos.CENTER);
+            confirmLabel.setStyle("-fx-font-family: " + fontFam + "; -fx-font-size: " + (isGB ? "8px" : "13px") + "; -fx-text-fill: " + theme.textHex + "; -fx-text-alignment: center;");
+
+            HBox confirmButtons = new HBox(15);
+            confirmButtons.setAlignment(Pos.CENTER);
+
+            Button yesBtn = new Button("YES, LEAVE");
+            Button noBtn = new Button("NO, STAY");
+
+            setupButtonHover(yesBtn, normalBg, normalText, normalBorder, isGB ? theme.textHex : "#ef4444", hoverText, isGB ? theme.textHex : "#ef4444", isGB, fontFam, isGB ? "9px" : "13px", true, "#ef4444");
+            setupButtonHover(noBtn, normalBg, normalText, normalBorder, isGB ? theme.textHex : theme.accentHex, hoverText, isGB ? theme.textHex : theme.accentHex, isGB, fontFam, isGB ? "9px" : "13px", true, theme.accentHex);
+
+            yesBtn.setOnAction(y -> {
+                SoundManager.playMenuSelect();
+                root.getChildren().remove(overlay);
+                activePauseOverlay = null;
+                model.setGameState("MENU");
+                SoundManager.stopMusic();
+                root.getChildren().setAll(menuLayout);
+            });
+
+            noBtn.setOnAction(n -> {
+                SoundManager.playMenuSelect();
+                // Restore normal button view
+                buttonContainer.getChildren().clear();
+                buttonContainer.getChildren().addAll(resumeBtn, restartBtn, leaveBtn);
+            });
+
+            confirmButtons.getChildren().addAll(yesBtn, noBtn);
+            buttonContainer.getChildren().addAll(confirmLabel, confirmButtons);
+        });
+
+        buttonContainer.getChildren().addAll(resumeBtn, restartBtn, leaveBtn);
+        card.getChildren().addAll(pauseTitle, buttonContainer);
+        overlay.getChildren().add(card);
+
+        activePauseOverlay = overlay;
+        root.getChildren().add(overlay);
+        overlay.requestFocus();
+    }
+
+    private static void hidePauseOverlay(StackPane root, ChromaCascadeModel model, VBox gameLayout) {
+        if (activePauseOverlay != null) {
+            root.getChildren().remove(activePauseOverlay);
+            activePauseOverlay = null;
+        }
+        model.setGameState("PLAYING");
+        gameLayout.requestFocus();
+    }
+
     public static void main(String[] args) {
         launch(args);
     }
