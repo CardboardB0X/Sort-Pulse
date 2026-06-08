@@ -110,6 +110,7 @@ public class ChromaCascadeApp extends Application {
 
     public static final java.util.Map<String, Theme> THEMES = new java.util.LinkedHashMap<>();
     public static boolean isCustomFontLoaded = false;
+    public static long lastGameStartTime = 0;
     static {
         THEMES.put("Classic Neon", new Theme("Classic Neon", "#0b0f19", "#0f172a", "#1e293b", "#10b981", "#334155", "#f59e0b", "#f8fafc", "#64748b"));
         THEMES.put("GameBoy Retro", new Theme("GameBoy Retro", "#cadc9f", "#8b9c6a", "#475230", "#475230", "#8b9c6a", "#1e2412", "#1e2412", "#475230"));
@@ -1392,6 +1393,7 @@ public class ChromaCascadeApp extends Application {
         // HUD elements
         private Label scoreValLabel;
         private Label timerValLabel;
+        private ProgressBar timerProgressBar;
         private Label metricsValLabel;
         private Label targetValLabel;
         private ListView<String> logListView;
@@ -1446,6 +1448,10 @@ public class ChromaCascadeApp extends Application {
 
         public void setTimerValLabel(Label timerValLabel) {
             this.timerValLabel = timerValLabel;
+        }
+
+        public void setTimerProgressBar(ProgressBar timerProgressBar) {
+            this.timerProgressBar = timerProgressBar;
         }
 
         public void setMetricsValLabel(Label metricsValLabel) {
@@ -2014,6 +2020,32 @@ public class ChromaCascadeApp extends Application {
                         } else {
                             timerValLabel.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 44px; -fx-text-fill: " + theme.accentHex + "; -fx-font-weight: bold;");
                         }
+                    }
+                }
+            }
+            if (timerProgressBar != null) {
+                if (model.isPracticeMode()) {
+                    timerProgressBar.setVisible(false);
+                } else {
+                    timerProgressBar.setVisible(true);
+                    double maxTime = 20.0;
+                    String targetAlgo = model.getTargetAlgorithm();
+                    if (targetAlgo.equalsIgnoreCase("Quick Sort") || targetAlgo.equalsIgnoreCase("Merge Sort")) {
+                        maxTime = 40.0;
+                    } else if (targetAlgo.equalsIgnoreCase("Bubble Sort") || targetAlgo.equalsIgnoreCase("Insertion Sort")) {
+                        maxTime = 30.0;
+                    }
+                    double progress = (double) model.getCountdownTimer() / maxTime;
+                    timerProgressBar.setProgress(Math.min(1.0, Math.max(0.0, progress)));
+                    
+                    String barColor = theme.accentHex;
+                    if (model.getCountdownTimer() <= 5) {
+                        barColor = "#f43f5e"; // Red alert color
+                    }
+                    if (isGB) {
+                        timerProgressBar.setStyle("-fx-accent: " + theme.accentHex + "; -fx-control-inner-background: " + theme.panelBgHex + "; -fx-text-box-border: " + theme.borderHex + "; -fx-background-radius: 0px;");
+                    } else {
+                        timerProgressBar.setStyle("-fx-accent: " + barColor + "; -fx-control-inner-background: #1e293b; -fx-text-box-border: transparent; -fx-background-radius: 4px;");
                     }
                 }
             }
@@ -2687,11 +2719,17 @@ public class ChromaCascadeApp extends Application {
         timerVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 44px; -fx-text-fill: #f59e0b; -fx-font-weight: bold;");
         view.setTimerValLabel(timerVal);
 
+        ProgressBar timerProgress = new ProgressBar(1.0);
+        timerProgress.setPrefWidth(220);
+        timerProgress.setPrefHeight(8);
+        timerProgress.setStyle("-fx-accent: #f59e0b; -fx-control-inner-background: #1e293b; -fx-text-box-border: transparent; -fx-background-radius: 4px;");
+        view.setTimerProgressBar(timerProgress);
+
         Label scoreVal = new Label("SCORE: 00000");
         scoreVal.setStyle("-fx-font-family: 'Consolas', monospace; -fx-font-size: 16px; -fx-text-fill: #ffffff; -fx-font-weight: bold;");
         view.setScoreValLabel(scoreVal);
 
-        topHud.getChildren().addAll(modeLabel, timerVal, scoreVal);
+        topHud.getChildren().addAll(modeLabel, timerVal, timerProgress, scoreVal);
 
         // Center Canvas Wrapper
         StackPane canvasWrapper = new StackPane();
@@ -2824,6 +2862,10 @@ public class ChromaCascadeApp extends Application {
                 }
             } else {
                 if (model.getGameState().equalsIgnoreCase("PLAYING") || model.getGameState().equalsIgnoreCase("GAME_OVER")) {
+                    if (System.currentTimeMillis() - lastGameStartTime < 200) {
+                        event.consume();
+                        return;
+                    }
                     controller.handleKeyPress(code);
                 }
             }
@@ -5367,6 +5409,7 @@ public class ChromaCascadeApp extends Application {
             SoundManager.playMenuSelect();
             tutorialTimer.stop();
             root.getChildren().remove(overlay);
+            lastGameStartTime = System.currentTimeMillis();
             onStartGame.run();
         });
 
@@ -5378,13 +5421,17 @@ public class ChromaCascadeApp extends Application {
 
         overlay.setOnKeyPressed(event -> {
             if (event.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                event.consume();
                 tutorialTimer.stop();
                 root.getChildren().remove(overlay);
+                lastGameStartTime = System.currentTimeMillis();
                 onStartGame.run();
             } else if (event.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                event.consume();
                 tutorialTimer.stop();
                 root.getChildren().remove(overlay);
             } else if (event.getCode() == javafx.scene.input.KeyCode.RIGHT || event.getCode() == javafx.scene.input.KeyCode.D) {
+                event.consume();
                 boolean showDetailed = showDetailedHolder[0];
                 if (showDetailed) {
                     if (detailedPageHolder[0] < maxDetailedPages - 1) {
@@ -5400,6 +5447,7 @@ public class ChromaCascadeApp extends Application {
                     }
                 }
             } else if (event.getCode() == javafx.scene.input.KeyCode.LEFT || event.getCode() == javafx.scene.input.KeyCode.A) {
+                event.consume();
                 boolean showDetailed = showDetailedHolder[0];
                 if (showDetailed) {
                     if (detailedPageHolder[0] > 0) {
