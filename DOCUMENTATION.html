@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sort Pulse - Technical Documentation</title>
+    <style>
+        /* CSS Page Setup for Screen Preview & A4 Print Matching */
+        @page {
+            size: A4;
+            margin: 0; /* Managed by page container padding for high-fidelity screen preview */
+        }
+        
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #e5e7eb;
+            margin: 0;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* Represent standard A4 sheet with 1-inch (72pt) margin */
+        .page {
+            background: white;
+            width: 210mm;
+            height: 297mm;
+            padding: 1in;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            page-break-after: always;
+        }
+
+        .page-content {
+            flex-grow: 1;
+            font-size: 11pt;
+            line-height: 1.15;
+            text-align: justify;
+            color: #1f2937;
+        }
+
+        .page-footer {
+            text-align: center;
+            font-size: 10pt;
+            color: #4b5563;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+
+        /* Typography & Headings */
+        h1, h2, h3, h4 {
+            font-weight: bold;
+            color: #111827;
+            margin-top: 0;
+        }
+
+        h1 {
+            font-size: 22pt;
+            text-align: center;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 13pt;
+            color: #4b5563;
+            margin-bottom: 40px;
+            font-style: italic;
+        }
+
+        h2 {
+            font-size: 13pt;
+            border-bottom: 1.5px solid #374151;
+            padding-bottom: 3px;
+            margin-top: 22px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        h3 {
+            font-size: 11pt;
+            margin-top: 14px;
+            margin-bottom: 6px;
+        }
+
+        p {
+            margin-top: 0;
+            margin-bottom: 10px;
+            text-indent: 0.25in;
+        }
+
+        p.no-indent {
+            text-indent: 0;
+        }
+
+        ul, ol {
+            margin-top: 0;
+            margin-bottom: 10px;
+            padding-left: 0.3in;
+        }
+
+        li {
+            margin-bottom: 4px;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 10pt;
+        }
+
+        th, td {
+            border: 1px solid #9ca3af;
+            padding: 6px 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+        }
+
+        /* Code Blocks */
+        pre {
+            background-color: #f9fafb;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 8.5pt;
+            line-height: 1.2;
+            margin: 12px 0;
+            overflow: hidden;
+            white-space: pre-wrap;
+        }
+
+        .keyword { color: #2563eb; font-weight: bold; }
+        .string { color: #16a34a; }
+        .comment { color: #6b7280; font-style: italic; }
+        .annotation { color: #9333ea; }
+        .type { color: #0891b2; font-weight: bold; }
+
+        /* Print Media Overrides */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .page {
+                box-shadow: none;
+                margin: 0;
+                width: 210mm;
+                height: 297mm;
+                padding: 1in;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- PAGE 1: TITLE & INTRODUCTION & SYSTEM DESIGN PART 1 -->
+    <div class="page">
+        <div class="page-content">
+            <h1>Sort Pulse</h1>
+            <div class="subtitle">Technical Documentation & System Manual</div>
+            
+            <div style="border-bottom: 2px double #111827; margin-bottom: 30px; text-align: center; padding-bottom: 10px; font-size: 10pt;">
+                <strong>Course Project:</strong> Interactive Sorting Trainer Game &nbsp;&nbsp;|&nbsp;&nbsp; 
+                <strong>System API:</strong> JavaFX 2D Canvas &nbsp;&nbsp;|&nbsp;&nbsp;
+                <strong>Date:</strong> June 8, 2026
+            </div>
+
+            <h2>1. Introduction</h2>
+            
+            <h3>Background of the Project</h3>
+            <p>In computer science education, sorting algorithms represent fundamental building blocks taught to introduce runtime complexity analysis, divide-and-conquer methodologies, and data manipulation. However, traditional teaching methods—such as static diagrams, pseudo-code trace slides, or passive animation loops—frequently fail to engage students effectively. Many struggle to bridge the gap between abstract algorithmic principles and actual step-by-step array index manipulations. <strong>Sort Pulse</strong> was conceived to address this gap by transforming theoretical sorting operations into an interactive, time-attack 2D arcade puzzle game. By gamifying manual selection, bubble swaps, shifts, and partitions, the application builds deep physical intuition and developer muscle memory regarding the operational flow of five classic sorting algorithms.</p>
+            
+            <h3>Purpose of the System</h3>
+            <p>The primary purpose of Sort Pulse is to serve as an interactive desktop learning simulator. Players do not just observe sorting; they manually execute the step-by-step logic. The system validates every action against a pre-computed theoretical algorithm trace. Correct selections trigger point rewards, combo multipliers, and timing extensions, while mistakes trigger instant score and time penalties. This tight, real-time feedback loop forces players to actively inspect array values and construct sorting paths, accelerating the absorption of theoretical sort logic.</p>
+
+            <h3>Project Objectives</h3>
+            <ul>
+                <li><strong>Interactive Mechanics:</strong> Design five customized gameplay mechanisms modeling the operational flow of Selection, Bubble, Insertion, Quick (Lomuto), and Merge Sort.</li>
+                <li><strong>Visual and Audio Feedback:</strong> Build a custom graphics engine handling smooth block slide animations, vector particle bursts, and a runtime synth audio sequencer that speeds up under time pressure.</li>
+                <li><strong>OOP Architecture:</strong> Apply core Object-Oriented principles—Encapsulation, Abstraction, Inheritance, and Polymorphism—to structure a clean, maintainable MVC codebase.</li>
+                <li><strong>Persistent Tracking:</strong> Maintain top local score entries in a flat-file database using automated serialization.</li>
+            </ul>
+
+            <h2>2. System Design and Overview</h2>
+            
+            <h3>Description of the Program</h3>
+            <p>Sort Pulse is a standalone desktop application written in Java and rendered on a JavaFX 2D Canvas. It runs at 60 FPS via a native <code>AnimationTimer</code> thread loop. Players can choose between <strong>Timed Blitz Mode</strong> (intense puzzle solving against a clock) and <strong>Practice Mode</strong> (untimed learning environment). The game features dual visuals (Classic Neon and retro GameBoy style), dynamic wave scaling (array sizes growing from 8 to 12 blocks as scores stack), and an 8-bit synthesizer running on a dedicated audio mixer thread.</p>
+        </div>
+        <div class="page-footer">Page 1</div>
+    </div>
+
+    <!-- PAGE 2: SYSTEM DESIGN PART 2 & PROGRAM DESIGN PART 1 -->
+    <div class="page">
+        <div class="page-content">
+            <h3>Scope and Limitations</h3>
+            <p>The system is bounded by specific scope constraints and limitations:</p>
+            <ul>
+                <li><strong>Scope:</strong> Supports ascending sort order across five modes; synthesizes custom frequencies on-the-fly; persists high scores locally; allows fullscreen toggles and theme configurations.</li>
+                <li><strong>Limitations:</strong> Restricted to local file storage (no cloud database); supports a maximum array length of 12 (to prevent screen clutter and maintain quick play loops); handles only single-player profiles.</li>
+            </ul>
+
+            <h3>Overview of the Data Structure(s) Used</h3>
+            <p>The application relies on several core data structures to model the game state and drive calculations:</p>
+            <ul>
+                <li><strong>Polymorphic Arrays (<code>BlockSegment[]</code>):</strong> The grid is structured as an array of the abstract class <code>BlockSegment</code>. This array is managed by a wrapper class <code>PuzzleRow</code>, which implements an array-bounds safety catch stack.</li>
+                <li><strong>Generic Lists (<code>java.util.List&lt;SortingStep&gt;</code>):</strong> Used to pre-calculate and store the sequence of correct index positions and comparison parameters. The controller checks player input against the active index in this list.</li>
+                <li><strong>Entity Lists:</strong> Parallel <code>ArrayLists</code> store active visual nodes (e.g., <code>Particle</code> vectors, <code>FloatingText</code> tags) updated dynamically in the frame loop.</li>
+                <li><strong>Local Flat-File (<code>sort_pulse_scores.txt</code>):</strong> Acts as a local serialization database. Leaderboard scores are parsed and written as delimited comma-separated records.</li>
+            </ul>
+
+            <h3>Overview of the Algorithm Implemented</h3>
+            <p>The system operates on two algorithmic levels: back-end tracing and real-time validation. When a wave spawns, a theoretical sorting tracer (such as bubble sort or quick sort Lomuto partition) runs on a copy of the array. It records every index swap, pivot assignment, and subarray boundary into a step queue. During play, the controller monitors keyboard inputs, compares the selected index to the step queue, and moves the grid elements only if the player's action is valid.</p>
+
+            <h3>Real-World Application or Use Case</h3>
+            <p>Sort Pulse is directly applicable as an educational classroom module for secondary or university-level data structure courses. It also serves as an excellent training tool for software developers preparing for technical interviews, turning dry theoretical questions into a fast-paced reflex trainer.</p>
+
+            <h2>3. Program Design</h2>
+            
+            <h3>Data Structures Design</h3>
+            <p>The design features the wrapper class <code>PuzzleRow</code>, which encapsules the primitive array of <code>BlockSegment</code> objects. The <code>PuzzleRow</code> class contains a secondary <code>overflowStack</code> array. If visual coordinates mismatch or index bounds are exceeded due to external synchronization delays, the system intercepts the error, copies the segment to the safety stack, logs the warning, and avoids a game-terminating crash.</p>
+
+            <h3>Algorithm Design</h3>
+            <p>The user interaction flows are customized for each algorithm mode:</p>
+            <ul>
+                <li><strong>Selection Sort:</strong> Select minimum element in active range -> press ENTER to shift to sorted position.</li>
+                <li><strong>Bubble Sort:</strong> Traverses array -> identify adjacent unsorted elements -> press ENTER to swap.</li>
+                <li><strong>Insertion Sort:</strong> Highlight active unsorted element -> press ENTER repeatedly to shift it leftward.</li>
+                <li><strong>Quick Sort:</strong> Rightmost element is pivot -> compare current block -> if smaller, press ENTER to move to target slot -> finally select pivot to lock.</li>
+                <li><strong>Merge Sort:</strong> Compare heads of Subarray A and B -> select smaller -> press ENTER to merge down.</li>
+            </ul>
+        </div>
+        <div class="page-footer">Page 2</div>
+    </div>
+
+    <!-- PAGE 3: UML CLASS DIAGRAM & OOP APPLICATION -->
+    <div class="page">
+        <div class="page-content">
+            <h3>UML Class Diagram</h3>
+            <p class="no-indent">The structural relationship between the core Model, View, Controller, and support utility classes is mapped below:</p>
+            
+            <!-- Inline SVG UML Class Diagram -->
+            <div style="text-align: center; margin: 15px 0;">
+                <svg width="620" height="350" viewBox="0 0 620 350" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px;">
+                    <!-- Markers -->
+                    <defs>
+                        <marker id="association" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#475569" stroke-width="1.5"/>
+                        </marker>
+                        <marker id="inheritance" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 Z" fill="white" stroke="#475569" stroke-width="1.5"/>
+                        </marker>
+                    </defs>
+
+                    <!-- ChromaCascadeApp -->
+                    <rect x="220" y="10" width="180" height="55" rx="4" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+                    <text x="310" y="28" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle">ChromaCascadeApp</text>
+                    <text x="230" y="44" font-family="Arial" font-size="8">+ start(Stage stage)</text>
+
+                    <!-- ChromaCascadeModel -->
+                    <rect x="15" y="100" width="170" height="85" rx="4" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+                    <text x="100" y="116" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle">ChromaCascadeModel</text>
+                    <text x="25" y="132" font-family="Arial" font-size="8">- score: int</text>
+                    <text x="25" y="144" font-family="Arial" font-size="8">- gameState: String</text>
+                    <text x="25" y="156" font-family="Arial" font-size="8">- puzzleRow: PuzzleRow</text>
+                    <text x="25" y="168" font-family="Arial" font-size="8">+ getScore(): int</text>
+
+                    <!-- ChromaCascadeView -->
+                    <rect x="435" y="100" width="170" height="85" rx="4" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+                    <text x="520" y="116" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle">ChromaCascadeView</text>
+                    <text x="445" y="132" font-family="Arial" font-size="8">- canvas: Canvas</text>
+                    <text x="445" y="144" font-family="Arial" font-size="8">- particles: List</text>
+                    <text x="445" y="156" font-family="Arial" font-size="8">+ draw()</text>
+                    <text x="445" y="168" font-family="Arial" font-size="8">+ spawnParticles()</text>
+
+                    <!-- ChromaCascadeController -->
+                    <rect x="210" y="100" width="200" height="85" rx="4" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+                    <text x="310" y="116" font-family="Arial" font-size="10" font-weight="bold" text-anchor="middle">ChromaCascadeController</text>
+                    <text x="220" y="132" font-family="Arial" font-size="8">- model: ChromaCascadeModel</text>
+                    <text x="220" y="144" font-family="Arial" font-size="8">- view: ChromaCascadeView</text>
+                    <text x="220" y="156" font-family="Arial" font-size="8">+ handleKeyPress(code)</text>
+                    <text x="220" y="168" font-family="Arial" font-size="8">+ executeShiftAction()</text>
+
+                    <!-- GridSorter -->
+                    <rect x="15" y="240" width="150" height="60" rx="4" fill="#fafafa" stroke="#475569" stroke-width="1.2"/>
+                    <text x="90" y="254" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle">GridSorter</text>
+                    <text x="23" y="270" font-family="Arial" font-size="8">+ sortRow()</text>
+                    <text x="23" y="282" font-family="Arial" font-size="8">+ generateQuickSteps()</text>
+
+                    <!-- SoundManager -->
+                    <rect x="235" y="240" width="150" height="60" rx="4" fill="#fafafa" stroke="#475569" stroke-width="1.2"/>
+                    <text x="310" y="254" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle">SoundManager</text>
+                    <text x="243" y="270" font-family="Arial" font-size="8">+ startMusic()</text>
+                    <text x="243" y="282" font-family="Arial" font-size="8">+ playSuccess()</text>
+
+                    <!-- LeaderboardManager -->
+                    <rect x="455" y="240" width="150" height="60" rx="4" fill="#fafafa" stroke="#475569" stroke-width="1.2"/>
+                    <text x="530" y="254" font-family="Arial" font-size="9" font-weight="bold" text-anchor="middle">LeaderboardManager</text>
+                    <text x="463" y="270" font-family="Arial" font-size="8">+ loadScores()</text>
+                    <text x="463" y="282" font-family="Arial" font-size="8">+ addScore()</text>
+
+                    <!-- Associations -->
+                    <path d="M 310 65 L 310 100" stroke="#475569" stroke-width="1" stroke-dasharray="2,2" marker-end="url(#association)"/>
+                    <path d="M 210 142 L 185 142" stroke="#475569" stroke-width="1" marker-end="url(#association)"/>
+                    <path d="M 410 142 L 435 142" stroke="#475569" stroke-width="1" marker-end="url(#association)"/>
+                    <path d="M 435 160 L 185 160" stroke="#64748b" stroke-width="0.8" stroke-dasharray="3,3" marker-end="url(#association)"/>
+                    <path d="M 260 185 L 115 240" stroke="#475569" stroke-width="1" marker-end="url(#association)"/>
+                    <path d="M 310 185 L 310 240" stroke="#475569" stroke-width="1" marker-end="url(#association)"/>
+                    <path d="M 360 185 L 505 240" stroke="#475569" stroke-width="1" marker-end="url(#association)"/>
+                </svg>
+            </div>
+
+            <h3>Application of Object-Oriented Programming principles</h3>
+            <p><strong>Encapsulation:</strong> The internal variables representing the game's core metrics, such as <code>gameState</code>, <code>score</code>, and <code>countdownTimer</code>, are encapsulated in <code>ChromaCascadeModel</code> as private properties. They can only be accessed or mutated through explicit getter and setter methods, ensuring state integrity.</p>
+            <p><strong>Abstraction:</strong> An abstract class <code>BlockSegment</code> serves as the template for all grid block items. It hides the details of sort weights behind an abstract signature <code>calculateSortWeight()</code>, allowing the controller to manipulate grid rows without needing to know specific implementation details.</p>
+            <p><strong>Inheritance:</strong> Inheritance is visible where <code>OddSegment</code> and <code>EvenSegment</code> derive from the abstract base class <code>BlockSegment</code>, inheriting structural traits while overriding weight logic. Similarly, <code>ChromaCascadeApp</code> inherits from JavaFX's <code>Application</code> class.</p>
+            <p><strong>Polymorphism:</strong> Polymorphism is utilized when rendering the grid. The view treats all items in the row array as <code>BlockSegment</code> objects. When drawing labels, calling <code>segment.calculateSortWeight()</code> invokes the subclass-specific calculation dynamically at runtime.</p>
+        </div>
+        <div class="page-footer">Page 3</div>
+    </div>
+
+    <!-- PAGE 4: PROGRAM IMPLEMENTATION - CLASSES & WORKFLOW -->
+    <div class="page">
+        <div class="page-content">
+            <h2>4. Program Implementation</h2>
+            
+            <h3>Description of Major Classes and Methods</h3>
+            <ul>
+                <li><strong><code>ChromaCascadeApp.start(Stage stage)</code>:</strong> Builds the JavaFX application window, creates the root <code>StackPane</code> layout container, instantiates the MVC components, loads the pixel-art font resources, and shows the primary stage.</li>
+                <li><strong><code>ChromaCascadeModel.getTheme()</code>:</strong> Returns the colors of the active theme (Classic Neon or GameBoy Retro).</li>
+                <li><strong><code>ChromaCascadeView.draw()</code>:</strong> Clears the screen and draws the boundaries, blocks, status logs, HUD text, particles, and floating banners onto the active canvas.</li>
+                <li><strong><code>ChromaCascadeController.handleKeyPress(KeyCode code)</code>:</strong> Listens to keyboard inputs. Moves the cursor left or right on <code>A</code> or <code>D</code>, and triggers actions on <code>ENTER</code>.</li>
+                <li><strong><code>GridSorter.compare(BlockSegment a, BlockSegment b)</code>:</strong> Compares the raw values of two blocks, placing empty elements (nulls) at the end.</li>
+                <li><strong><code>SoundManager.mixerThread</code>:</strong> A background thread that mixes active tones and writes raw 16-bit stereo PCM bytes to the output buffer to play procedural audio.</li>
+                <li><strong><code>LeaderboardManager.addScore(String algo, int score, String initials)</code>:</strong> Reads the leaderboard file, inserts the new entry in sorted order if it qualifies for the top 5, and writes the updated list back to the disk.</li>
+            </ul>
+
+            <h3>Explanation of Program Workflow</h3>
+            <p class="no-indent">The operational workflow follows these structured phases:</p>
+            <ol>
+                <li><strong>Initialization Phase:</strong> The app loads. It reads <code>javafx_path.txt</code>, registers visual layouts, and displays the main menu. The leaderboard data is read from the local file into memory.</li>
+                <li><strong>Configuration Phase:</strong> The player selects a theme, enables or disables Practice Mode, and clicks an algorithm button. This triggers the initialization sequence, generating a random array of blocks.</li>
+                <li><strong>Tracing Phase:</strong> Before gameplay starts, <code>GridSorter</code> runs the selected algorithm on a copy of the array and records the correct comparisons and swaps in a list of <code>SortingStep</code> objects.</li>
+                <li><strong>Active Game Loop Phase:</strong> An <code>AnimationTimer</code> triggers at 60 FPS. The controller checks keyboard inputs against the active <code>SortingStep</code>. Correct inputs execute swaps and chimes; incorrect inputs trigger penalties and buzzes. The background thread generates a synth bass arpeggio that scales tempo with the clock.</li>
+                <li><strong>Wave Clear Phase:</strong> Once all steps are completed, a wave clear banner displays. The system awards points, adds time, increases array length, and generates a new random wave.</li>
+                <li><strong>Game Over & Save Phase:</strong> When the timer hits zero, the controller stops the music. If the score qualifies for the leaderboard, the game prompts the player for initials, updates the score file, and returns to the menu.</li>
+            </ol>
+        </div>
+        <div class="page-footer">Page 4</div>
+    </div>
+
+    <!-- PAGE 5: CODE SNIPPETS & DISCUSSIONS 1 -->
+    <div class="page">
+        <div class="page-content">
+            <h3>Important Code Snippets and Discussions</h3>
+            
+            <h4>1. Dynamic Coordinate Interpolation</h4>
+            <p>To achieve smooth sliding animations, block coordinates are updated in the view using a linear interpolation formula. Rather than snapping immediately to target grid cells, coordinates are adjusted incrementally by moving a fraction (22%) of the remaining distance to the target position each frame:</p>
+            
+            <pre>
+<span class="comment">// Interpolate block rendering coordinates toward target coordinates</span>
+<span class="type">double</span> targetX = startX + i * boxWidth;
+<span class="type">double</span> targetY = startY;
+
+<span class="keyword">if</span> (targetAlgo.equalsIgnoreCase(<span class="string">"Merge Sort"</span>)) {
+    <span class="comment">// Map blocks to upper/lower levels depending on merge state</span>
+    <span class="keyword">if</span> (model.getSteps() != <span class="keyword">null</span> && model.getCurrentStep() < model.getSteps().size()) {
+        SortingStep step = model.getSteps().get(model.getCurrentStep());
+        <span class="keyword">if</span> (i < step.mergeTarget) {
+            targetY = startY + 60; <span class="comment">// Lower output level</span>
+        } <span class="keyword">else</span> {
+            targetY = startY - 60; <span class="comment">// Upper unmerged level</span>
+        }
+    }
+}
+
+<span class="type">double</span> currentX = visualXMap.getOrDefault(segment, targetX);
+<span class="type">double</span> currentY = visualYMap.getOrDefault(segment, targetY);
+
+<span class="comment">// Interpolate coordinates at 22% velocity per frame</span>
+currentX += (targetX - currentX) * 0.22;
+currentY += (targetY - currentY) * 0.22;
+
+visualXMap.put(segment, currentX);
+visualYMap.put(segment, currentY);</pre>
+
+            <h4>2. Audio Mixer & Synth Engine</h4>
+            <p>The audio engine synthesizes retro sound effects and background music entirely in code using Java's standard sound APIs, avoiding the need for external audio files. The mixer thread dynamically calculates sound samples using mathematical wave models and writes them to a stereo audio line:</p>
+
+            <pre>
+<span class="comment">// Procedural audio tone mixer calculation</span>
+<span class="type">double</span> sampleVal = Math.sin(tone.phase) * tone.volume * envelope;
+tone.phase += tone.phaseStep;
+<span class="keyword">if</span> (tone.phase > 2.0 * Math.PI) {
+    tone.phase -= 2.0 * Math.PI;
+}
+
+<span class="comment">// Calculate spatial stereo pan (-1.0 Left to +1.0 Right)</span>
+<span class="type">double</span> leftFactor = Math.max(0.0, Math.min(1.0, 1.0 - tone.pan));
+<span class="type">double</span> rightFactor = Math.max(0.0, Math.min(1.0, 1.0 + tone.pan));
+
+leftSum += sampleVal * leftFactor;
+rightSum += sampleVal * rightFactor;</pre>
+        </div>
+        <div class="page-footer">Page 5</div>
+    </div>
+
+    <!-- PAGE 6: CODE SNIPPETS & DISCUSSIONS 2 & ALGORITHM ANALYSIS -->
+    <div class="page">
+        <div class="page-content">
+            <h4>3. Lomuto Quick Sort Partition Step Tracer</h4>
+            <p>The system pre-computes sorting steps to validate player actions in real-time. In Lomuto partitioning, a loop compares elements against the pivot and records each comparison and swap in the step list:</p>
+
+            <pre>
+<span class="keyword">private static int</span> partitionTrace(BlockSegment[] array, <span class="type">int</span> low, <span class="type">int</span> high, List&lt;SortingStep&gt; steps) {
+    BlockSegment pivot = array[high];
+    <span class="type">int</span> i = low - 1;
+    <span class="keyword">for</span> (<span class="type">int</span> j = low; j < high; j++) {
+        <span class="comment">// Record comparison step</span>
+        SortingStep comp = <span class="keyword">new</span> SortingStep();
+        comp.activeLeft = low; comp.activeRight = high; comp.pivotIndex = high; comp.nextCursor = j;
+        steps.add(comp);
+
+        <span class="keyword">if</span> (array[j].getRawValue() &lt;= pivot.getRawValue()) {
+            i++;
+            <span class="comment">// Record swap step</span>
+            SortingStep swap = <span class="keyword">new</span> SortingStep();
+            swap.correctIndex = j; swap.targetIndex = i;
+            swap.activeLeft = low; swap.activeRight = high; swap.pivotIndex = high;
+            steps.add(swap);
+
+            BlockSegment temp = array[i]; array[i] = array[j]; array[j] = temp;
+        }
+    }
+    <span class="keyword">return</span> i + 1;
+}</pre>
+
+            <h2>5. Algorithm Analysis</h2>
+            
+            <h3>Complexity Overview</h3>
+            <p class="no-indent">The time and space complexities of the five implemented algorithms are summarized below:</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Algorithm</th>
+                        <th>Best Case</th>
+                        <th>Average Case</th>
+                        <th>Worst Case</th>
+                        <th>Space Complexity</th>
+                        <th>Stability</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Selection Sort</strong></td>
+                        <td>&Theta;(n<sup>2</sup>)</td>
+                        <td>&Theta;(n<sup>2</sup>)</td>
+                        <td>&Theta;(n<sup>2</sup>)</td>
+                        <td>O(1)</td>
+                        <td>Unstable</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Bubble Sort</strong></td>
+                        <td>&Theta;(n)</td>
+                        <td>&Theta;(n<sup>2</sup>)</td>
+                        <td>&Theta;(n<sup>2</sup>)</td>
+                        <td>O(1)</td>
+                        <td>Stable</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Insertion Sort</strong></td>
+                        <td>&Theta;(n)</td>
+                        <td>&Theta;(n<sup>2</sup>)</td>
+                        <td>&Theta;(n<sup>2</sup>)</td>
+                        <td>O(1)</td>
+                        <td>Stable</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Quick Sort</strong></td>
+                        <td>&Theta;(n log n)</td>
+                        <td>&Theta;(n log n)</td>
+                        <td>&Theta;(n<sup>2</sup>)</td>
+                        <td>O(log n)</td>
+                        <td>Unstable</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Merge Sort</strong></td>
+                        <td>&Theta;(n log n)</td>
+                        <td>&Theta;(n log n)</td>
+                        <td>&Theta;(n log n)</td>
+                        <td>O(n)</td>
+                        <td>Stable</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Discussion of Efficiency and Performance</h3>
+            <p>During interactive gameplay, these mathematical complexity profiles translate directly into physical effort. In **Bubble Sort**, players must compare and swap adjacent elements. A highly unsorted 12-element array can require dozens of swaps, making gameplay feel long and demanding. In contrast, **Selection Sort** requires exactly $n-1$ swaps across all configurations. While simple to play, it lacks early-termination shortcuts, meaning the game length remains fixed and predictable. **Insertion Sort** is highly efficient when the array is nearly sorted, requiring very few actions. However, a reverse-sorted array forces the player to shift every element all the way to the left, which can be exhausting. **Quick and Merge Sort** use divide-and-conquer strategies. While they are mathematically faster for computers, they require more complex decision-making from players. In Merge Sort, players must perform double-level head comparisons, which requires more cognitive effort than the straightforward linear scanning of Selection Sort.</p>
+        </div>
+        <div class="page-footer">Page 6</div>
+    </div>
+
+    <!-- PAGE 7: RESULTS & DISCUSSION & CONCLUSION -->
+    <div class="page">
+        <div class="page-content">
+            <h2>6. Results and Discussion</h2>
+            
+            <h3>Program Outputs and Screenshots</h3>
+            <p class="no-indent">The user interface features two distinct styles tailored for different display conditions:</p>
+            
+            <!-- Side-by-Side Images -->
+            <div style="display: flex; justify-content: space-between; margin: 15px 0;">
+                <div style="width: 48%; text-align: center;">
+                    <img src="classic_neon_gameplay.png" alt="Classic Neon Theme" style="width: 100%; border: 1.5px solid #1e293b; border-radius: 4px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);" />
+                    <div style="font-size: 8.5pt; font-style: italic; margin-top: 4px; color: #4b5563;">Figure 1: Classic Neon Theme</div>
+                </div>
+                <div style="width: 48%; text-align: center;">
+                    <img src="gameboy_retro_gameplay.png" alt="GameBoy Retro Theme" style="width: 100%; border: 1.5px solid #475230; border-radius: 4px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);" />
+                    <div style="font-size: 8.5pt; font-style: italic; margin-top: 4px; color: #4b5563;">Figure 2: GameBoy Retro Theme</div>
+                </div>
+            </div>
+
+            <h3>Discussion of Objective Achievement</h3>
+            <p>Sort Pulse successfully meets its educational goals. The time pressure in Timed Blitz Mode discourages trial-and-error play, forcing players to think ahead and execute the actual steps of each sorting algorithm. In contrast, Practice Mode provides a stress-free environment for beginners to study the algorithms at their own pace without penalties. The real-time visual and audio feedback helps players self-correct, reinforcing their understanding of the algorithms.</p>
+
+            <h3>Observations and Findings</h3>
+            <p>During testing, we observed that Bubble Sort requires the most manual cursor movement, reflecting its high number of swap operations. In contrast, Merge Sort is easy to trace visually due to its double-level layout, which clearly separates unmerged subarrays from the sorted output area. In Quick Sort, the Lomuto comparison flags make it easy for players to identify the split points and understand how elements are partitioned around the pivot.</p>
+
+            <h2>7. Conclusion</h2>
+            
+            <h3>Summary of the Project</h3>
+            <p>Sort Pulse is an interactive educational game built using JavaFX and a Model-View-Controller architecture. By translating sorting algorithms into engaging gameplay mechanics, the system provides a practical platform for learning data structures. The procedural audio synthesizer and dual visual themes deliver an immersive retro arcade experience without external file dependencies.</p>
+
+            <h3>Key Learnings and Insights</h3>
+            <p>Pre-calculating sorting steps as a list of independent structures (<code>SortingStep</code>) decoupled the game logic from visual rendering, preventing synchronization issues. Developing the procedural synth engine also demonstrated that dynamic audio can be generated directly using standard Java audio libraries, keeping the application lightweight.</p>
+
+            <h3>Recommendations for Future Improvements</h3>
+            <ul>
+                <li><strong>Networked Leaderboards:</strong> Replace the local scoring file with a remote API server to support global leaderboards and online competition.</li>
+                <li><strong>Custom Algorithm Builder:</strong> Integrate an in-game editor that allows users to write custom sorting routines and compile them into playable stages.</li>
+                <li><strong>Mobile Support:</strong> Package the application with Gluon Mobile for Android and iOS devices, expanding its reach as a mobile learning tool.</li>
+            </ul>
+        </div>
+        <div class="page-footer">Page 7</div>
+    </div>
+
+</body>
+</html>
